@@ -11,7 +11,7 @@ Installing Non-Development Version
 If you want to just install the `pyverilator` package, you should be able to using the following command:
 
 
-    $ pip3 install https://github.com/csail-csg/pyverilator
+    $ pip3 install pyverilator 
 
 
 
