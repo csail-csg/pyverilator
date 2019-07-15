@@ -1,8 +1,8 @@
 PyVerilator
 ===========
 
-This package provides wrapper to generate and use verilator
-hardware models.
+This package provides a wrapper to generate and use verilator
+hardware models in python.
 
 
 Installing Non-Development Version

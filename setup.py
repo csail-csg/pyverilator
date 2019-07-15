@@ -11,14 +11,14 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 setup(
     name='PyVerilator',
     version='0.0.1',
-    description='Python-based interface for Verilator models',
-    # long_description=long_description,
+    description='Python interface to Verilator models',
+    long_description=long_description,
     url='https://github.com/csail-csg/pyverilator',
     author='CSAIL CSG',
     author_email='acwright@mit.edu, bthom@mit.edu',
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Build Tools',
         'Topic :: System :: Hardware',
