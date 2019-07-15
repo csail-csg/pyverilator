@@ -34,7 +34,7 @@ class TestPyVerilator(unittest.TestCase):
         # write test verilog file
         with open('width_test.v', 'w') as f:
             f.write(test_verilog)
-        test_pyverilator = pyverilator.PyVerilator.from_verilog('width_test.v')
+        test_pyverilator = pyverilator.PyVerilator.build('width_test.v')
 
         test_pyverilator.start_vcd_trace('test.vcd')
         test_pyverilator['input_a'] = 0xaa
@@ -84,7 +84,7 @@ class TestPyVerilator(unittest.TestCase):
         # write test verilog file
         with open('internal_test.v', 'w') as f:
             f.write(test_verilog)
-        test_pyverilator = pyverilator.PyVerilator.from_verilog('internal_test.v')
+        test_pyverilator = pyverilator.PyVerilator.build('internal_test.v')
 
         # get the full signal name for internal_concat_1 and internal_concat_2
         internal_concat_1_sig_name = None
@@ -158,7 +158,7 @@ class TestPyVerilator(unittest.TestCase):
         # write test verilog file
         with open('reg_file.v', 'w') as f:
             f.write(test_verilog)
-        test_pyverilator = pyverilator.PyVerilator.from_verilog('reg_file.v')
+        test_pyverilator = pyverilator.PyVerilator.build('reg_file.v')
 
         test_pyverilator.start_vcd_trace('test.vcd')
 

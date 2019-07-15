@@ -60,35 +60,41 @@ class PyVerilator:
     """Python wrapper for verilator model.
 
         Usage:
-            sim = PyVerilator.from_verilog('my_verilator_file.v')
+            sim = PyVerilator.build('my_verilator_file.v')
             sim.io.a = 2
             sim.io.b = 3
-            sim.eval()
             print('c = ' + sim.io.c)
+
+        By default the object created propagates the signal changes every time the input changes.
+        So a clock cycle will be:
+            sim.clock = 1
+            sim.clock = 0
+
+
+        Alternatively using the dictionary syntax:
+            sim = PyVerilator.build('my_verilator_file.v')
+            sim['a'] = 2
+            sim['b'] = 3
+            print('c = ' + sim['c'])
     """
     @classmethod
-    def from_verilog(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir', json_data = None, gen_only = False):
+    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir', json_data = None, gen_only = False):
         """ Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
-        a model of top_verilog_file using verilator and the compiler of the machine.
+        a model of top_verilog_file using verilator and the C compiler. All the files are created in build_dir.
 
-        If the project is made of more than one verilog file, all the files used by the top_verilog_file should be
-        accessible from verilog_path.
+        If the project is made of more than one verilog file, all the files used by the top_verilog_file will be searched
+        for in the verilog_path list.
 
-        Usage:
-            sim = PyVerilator.from_verilog('my_verilator_file.v')
-            sim.io.a = 2
-            sim.io.b = 3
-            sim.eval()
-            print('c = ' + sim.io.c)
+        json_data is a payload than can be used to add a json as a string in the object file compiled by verilator.
 
-        Alternatively using the dictionary syntax:
-            sim = PyVerilator.from_verilog('my_verilator_file.v')
-            sim['a'] = 2
-            sim['b'] = 3
-            sim.eval()
-            print('c = ' + sim['c'])
+        This allow to keep the object file a standalone model even when extra information iis useful to describe the
+        model.
+
+        For example a model coming from bluespec will carry the list of rules of the model in this payload.
+
+        gen_only stops the process before compiling the cpp into object.
         """
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
@@ -177,19 +183,6 @@ class PyVerilator:
                      'LDFLAGS=-fPIC -shared']
         subprocess.call(make_args)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
-        return cls(so_file)
-
-    @classmethod
-    def from_so(cls, so_file):
-        """Load a previously built object.
-
-        Usage:
-            sim = PyVerilator.from_verilog('./obj_dir/Vmymodule')
-            sim.io.a = 2
-            sim.io.b = 3
-            sim.eval()
-            print('c = ' + sim.io.c)
-        """
         return cls(so_file)
 
     def __init__(self, so_file, auto_eval=True):
