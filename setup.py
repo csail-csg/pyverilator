@@ -16,7 +16,7 @@ setup(
     # long_description=long_description,
     url='https://github.com/csail-csg/pyverilator',
     author='CSAIL CSG',
-    author_email='pyverilator@csail.mit.edu',
+    author_email='acwright@mit.edu, bthom@mit.edu',
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',

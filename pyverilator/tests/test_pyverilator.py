@@ -132,7 +132,7 @@ class TestPyVerilator(unittest.TestCase):
 
         test_pyverilator.stop_vcd_trace()
 
-    def test_pyverilator_array_tracing2(self):
+    def test_pyverilator_array_tracing_alternativesyntax(self):
         test_verilog = '''
             module reg_file (
                     clk,
@@ -169,8 +169,8 @@ class TestPyVerilator(unittest.TestCase):
             test_pyverilator.io.clk = 1
 
         def read_reg( idx ):
-            test_pyverilator['rd_idx'] = idx
-            return test_pyverilator['rd_data']
+            test_pyverilator.io.rd_idx = idx
+            return test_pyverilator.io.rd_data
 
         # TODO: add tests for getting values from internal arrays of registers once supported by pyverilator
 

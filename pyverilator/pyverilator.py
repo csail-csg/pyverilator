@@ -10,7 +10,7 @@ import pyverilator.verilatorcpp as template_cpp
 
 
 class IO:
-    """ Expose the io of the verilator model through standard python syntax:
+    """ Exposes the io of the verilator model with standard python syntax:
 
     sim.io.en_enq
     sim.io.en_enq = 1
@@ -39,7 +39,7 @@ class IO:
 
 
 class Internals:
-    """ Expose the internal signals of the verilator model through standard python syntax:
+    """ Exposes the internal signals of the verilator model with standard python syntax:
 
     sim.internals.__T243
     """
