@@ -24,7 +24,7 @@ extern const uint32_t _pyverilator_num_rules;
 extern const char* _pyverilator_rules[];
 extern const char* _pyverilator_json_data;
 // now initialize the variables
-const char* _pyverilator_module_name = "{module_filename}";
+const char* _pyverilator_module_name = "{top_module}";
 const uint32_t _pyverilator_num_inputs = {nb_inputs};
 const char* _pyverilator_inputs[] = {{{name_inputs}}};
 const uint32_t _pyverilator_input_widths[] = {{{size_inputs}}};
@@ -43,7 +43,7 @@ const char* _pyverilator_json_data = {json_data};
 // main_time is incremented in eval
 double main_time = 0;
     """.format(
-        module_filename='V' + top_module,
+        top_module = top_module,
         nb_inputs=len(inputs),
         name_inputs=",".join(map(lambda input: '"' + input[0] + '"', inputs)),
         size_inputs=",".join(map(lambda input: str(input[1]), inputs)),
