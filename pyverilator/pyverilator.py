@@ -15,6 +15,8 @@ class IO:
 
     sim.io.en_enq
     sim.io.en_enq = 1
+
+    Note: We assume that there is no wires named sim_object
     """
     def __init__(self, pyverilator_sim):
         self.sim_object = pyverilator_sim
@@ -43,6 +45,7 @@ class Internals:
     """ Exposes the internal signals of the verilator model with standard python syntax:
 
     sim.internals.__T243
+    Note: We assume that there is no wires named sim_object
     """
     def __init__(self, pyverilator_sim):
         self.sim_object = pyverilator_sim
@@ -446,11 +449,6 @@ class PyVerilator:
 
         if num_found_signals < len(signal_names):
             raise ValueError('send_signals_to_gtkwave was only able to send %d of %d signals' % (num_found_signals, len(signal_names)))
-
-    def send_reg_to_gtkwave(self, reg_name):
-        if not self.gtkwave_active:
-            raise ValueError('send_reg_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
-        self.send_signals_to_gtkwave(reg_name)
 
     def send_signal_to_gtkwave(self, signal_name):
         if not self.gtkwave_active:
