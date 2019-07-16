@@ -420,6 +420,11 @@ class PyVerilator:
         self.gtkwave_tcl = tclwrapper.TCLWrapper('gtkwave', '-W')
         self.gtkwave_tcl.start()
         self.gtkwave_tcl.eval('gtkwave::loadFile %s' % self.vcd_filename)
+        # adjust the screen to show more of the trace
+        zf = float(self.gtkwave_tcl.eval('gtkwave::getZoomFactor'))
+        # this seems to work well
+        new_zf = zf - 5
+        self.gtkwave_tcl.eval('gtkwave::setZoomFactor %f' % (new_zf))
 
     def send_signals_to_gtkwave(self, signal_names):
         if not self.gtkwave_active:
