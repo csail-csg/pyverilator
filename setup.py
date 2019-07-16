@@ -27,7 +27,7 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     keywords='Verilator Wrapper Verilog',
-    packages=find_packages(exclude=[]),
+    packages=find_packages(exclude=['example']),
     include_package_data=True,
     install_requires=['tclwrapper>=0.0.1'],
     setup_requires=['pytest-runner'],
