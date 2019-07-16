@@ -7,6 +7,7 @@ import subprocess
 import json
 import re
 import pyverilator.verilatorcpp as template_cpp
+import tclwrapper
 
 
 class IO:
@@ -77,6 +78,9 @@ class PyVerilator:
             sim['b'] = 3
             print('c = ' + sim['c'])
     """
+
+    default_vcd_filename = 'gtkwave.vcd'
+
     @classmethod
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir', json_data = None, gen_only = False):
         """ Build an object file from verilog and load it into python.
@@ -197,6 +201,7 @@ class PyVerilator:
         self.auto_tracing_mode = None
         self.curr_time = 0
         self.vcd_reader = None
+        self.gtkwave_active = False
         self.lib = ctypes.CDLL(so_file)
         construct = self.lib.construct
         construct.restype = ctypes.c_void_p
@@ -379,6 +384,8 @@ class PyVerilator:
         if self.vcd_trace is None:
             raise ValueError('flush_vcd_trace() requires VCD tracing to be active')
         self.lib.flush_vcd_trace(self.vcd_trace)
+        if self.gtkwave_active:
+            self.reload_dump_file()
 
     def stop_vcd_trace(self):
         if self.vcd_trace is None:
@@ -388,3 +395,72 @@ class PyVerilator:
         self.auto_tracing_mode = None
         self.vcd_filename = None
 
+    def reload_dump_file(self):
+        if self.gtkwave_active:
+            # this gets the max time before and after the dump file is reloaded to see if it changed
+            old_max_time = float(self.gtkwave_tcl.eval('gtkwave::getMaxTime'))
+            self.gtkwave_tcl.eval('gtkwave::reLoadFile')
+            new_max_time = float(self.gtkwave_tcl.eval('gtkwave::getMaxTime'))
+            if new_max_time > old_max_time:
+                # if it changed, see if the window could previously see the last data but not anymore
+                window_end_time = float(self.gtkwave_tcl.eval('gtkwave::getWindowEndTime'))
+                if window_end_time >= old_max_time and window_end_time < new_max_time:
+                    # if so, shift the window start so the new data is shown
+                    time_shift_amt = new_max_time - window_end_time
+                    window_start_time = float(self.gtkwave_tcl.eval('gtkwave::getWindowStartTime'))
+                    self.gtkwave_tcl.eval('gtkwave::setWindowStartTime %d' % (window_start_time + time_shift_amt))
+
+    def start_gtkwave(self):
+        if self.vcd_filename is None:
+            self.start_vcd_trace(PyVerilator.default_vcd_filename)
+        self.gtkwave_active = True
+        self.gtkwave_tcl = tclwrapper.TCLWrapper('gtkwave', '-W')
+        self.gtkwave_tcl.start()
+        self.gtkwave_tcl.eval('gtkwave::loadFile %s' % self.vcd_filename)
+
+    def send_signals_to_gtkwave(self, signal_names):
+        if not self.gtkwave_active:
+            raise ValueError('send_signals_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
+        if not isinstance(signal_names, list):
+            signal_names = [signal_names]
+
+        signal_names_gtkwave = list(map( lambda x: 'TOP.' + x.replace('__DOT__','.'), signal_names ))
+        signal_names_tclstring = '{%s}' % (' '.join(signal_names_gtkwave))
+
+        # find the signals
+        num_found_signals = int(self.gtkwave_tcl.eval('''
+        set nfacs [gtkwave::getNumFacs]
+        set found_signals [list]
+        set target_signals %s
+        for {set i 0} {$i < $nfacs} {incr i} {
+            set facname [gtkwave::getFacName $i]
+            foreach target_sig $target_signals {
+                if {[string first [string tolower $target_sig] [string tolower $facname]] != -1} {
+
+                    lappend found_signals "$facname"
+                }
+            }
+        }
+        gtkwave::addSignalsFromList $found_signals
+        ''' % signal_names_tclstring))
+
+        if num_found_signals < len(signal_names):
+            raise ValueError('send_signals_to_gtkwave was only able to send %d of %d signals' % (num_found_signals, len(signal_names)))
+
+    def send_reg_to_gtkwave(self, reg_name):
+        if not self.gtkwave_active:
+            raise ValueError('send_reg_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
+        self.send_signals_to_gtkwave(reg_name)
+
+    def send_signal_to_gtkwave(self, signal_name):
+        if not self.gtkwave_active:
+            raise ValueError('send_signal_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
+        self.send_signals_to_gtkwave(reg_name)
+
+    def stop_gtkwave(self):
+        if not self.gtkwave_active:
+            raise ValueError('stop_gtkwave() requires GTKWave to be started using start_gtkwave()')
+        self.gtkwave_tcl.stop()
+        self.gtkwave_active = False
+        if self.vcd_filename == PyVerilator.default_vcd_filename:
+            self.stop_vcd_trace()
