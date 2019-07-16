@@ -455,7 +455,7 @@ class PyVerilator:
     def send_signal_to_gtkwave(self, signal_name):
         if not self.gtkwave_active:
             raise ValueError('send_signal_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
-        self.send_signals_to_gtkwave(reg_name)
+        self.send_signals_to_gtkwave(signal_name)
 
     def stop_gtkwave(self):
         if not self.gtkwave_active:
