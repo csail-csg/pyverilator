@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='PyVerilator',
-    version='0.0.1',
+    version='0.1.0',
     description='Python interface to Verilator models',
     long_description=long_description,
     url='https://github.com/csail-csg/pyverilator',
@@ -27,8 +27,9 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     keywords='Verilator Wrapper Verilog',
-    packages=find_packages(exclude=[]),
+    packages=find_packages(exclude=['example']),
     include_package_data=True,
+    install_requires=['tclwrapper>=0.0.1'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest'],
     entry_points={
