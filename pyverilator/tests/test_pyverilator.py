@@ -14,6 +14,10 @@ class TestPyVerilator(unittest.TestCase):
         os.chdir(self.old_dir)
         shutil.rmtree(self.test_dir)
 
+    def test_pyverilator_verilator_exists(self):
+        self.assertIsNotNone(shutil.which('verilator'))
+
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
     def test_pyverilator(self):
         test_verilog = '''
             module width_test (
@@ -47,6 +51,7 @@ class TestPyVerilator(unittest.TestCase):
 
         test_pyverilator.stop_vcd_trace()
 
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
     def test_pyverilator_tracing(self):
         test_verilog = '''
             module internal_test (
@@ -132,6 +137,7 @@ class TestPyVerilator(unittest.TestCase):
 
         test_pyverilator.stop_vcd_trace()
 
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
     def test_pyverilator_array_tracing_alternativesyntax(self):
         test_verilog = '''
             module reg_file (
