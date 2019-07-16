@@ -226,6 +226,8 @@ class PyVerilator:
 
 
     def _read_embedded_data(self):
+        self.module_name = ctypes.c_char_p.in_dll(self.lib, '_pyverilator_module_name').value.decode('ascii')
+
         # inputs
         num_inputs = ctypes.c_uint32.in_dll(self.lib, '_pyverilator_num_inputs').value
         input_names = (ctypes.c_char_p * num_inputs).in_dll(self.lib, '_pyverilator_inputs')
