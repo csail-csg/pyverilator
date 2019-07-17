@@ -14,7 +14,7 @@ def get_io_collection(sim):
         signals[sig_name] = Input(sim, sig_name, width)
     for sig_name, width in sim.outputs:
         signals[sig_name] = Output(sim, sig_name, width)
-    return MyCollection(signals)
+    return Collection(signals)
 
 def get_internal_signal_collection(sim):
     internal_signal_hierarchy = {}
@@ -31,10 +31,10 @@ def get_internal_signal_collection(sim):
         for key in curr_node:
             if isinstance(curr_node[key], dict):
                 curr_node[key] = construct_collection(curr_node[key])
-        return MyCollection(curr_node)
+        return Collection(curr_node)
     return construct_collection(internal_signal_hierarchy)
 
-class MyCollection:
+class Collection:
     def __init__(self, items):
         self._item_dict = items
         self._item_dict_keys = list(items.keys())
@@ -46,7 +46,20 @@ class MyCollection:
         obj = self._item_dict.get(name)
         if obj is not None:
             return obj
-        raise AttributeError("'MyCollection' object has no attribute '%s'" % name)
+        raise AttributeError("'Collection' object has no attribute '%s'" % name)
+
+    def __getitem__(self, name):
+        obj = self._item_dict.get(name)
+        if obj is not None:
+            return obj
+        raise ValueError("'Collection' object has no item '%s'" % name)
+
+    def __setitem__(self, name, value):
+        obj = self._item_dict.get(name)
+        if obj is not None:
+            obj.write(value)
+        else:
+            raise ValueError('signal "%s" does not exist' % name)
 
     def __setattr__(self, name, value):
         if name == '_item_dict' or name == '_item_dict_keys':
@@ -56,7 +69,7 @@ class MyCollection:
             if obj is not None:
                 obj.write(value)
             else:
-                raise Exception('signal "%s" does not exist' % name)
+                raise ValueError('signal "%s" does not exist' % name)
 
     def __iter__(self):
         return iter(self._item_dict.values())
@@ -78,6 +91,7 @@ class Signal:
         else:
             self.value_function_and_args = (self.sim_object._read_words, self.verilator_name, (width + 31) // 32)
 
+    @property
     def value(self):
         # this calls the value function (the 0th element of self.value_function_and_args)
         # with the necessary arguments (the rest of self.value_function_and_args)
@@ -113,55 +127,17 @@ class Input(Signal):
     def __le__(self, rhs):
         self.write(rhs)
 
-class IO:
-    """ Exposes the io of the verilator model with standard python syntax:
+class Clock(Input):
+    def __init__(self, input_):
+        if not isinstance(input_, Input):
+            raise TypeError('Clock must be made from an Input')
+        if input_.width != 1:
+            raise ValueError('Clock must be a 1-bit signal')
+        super().__init__(input_.sim_object, input_.verilator_name, input_.width)
 
-    sim.io.en_enq
-    sim.io.en_enq = 1
-
-    Note: We assume that there is no wires named sim_object
-    """
-    def __init__(self, pyverilator_sim):
-        self.sim_object = pyverilator_sim
-
-    def __dir__(self):
-        return map(lambda x: x[0], self.sim_object.inputs + self.sim_object.outputs)
-        # Update the dic to show up all the signals
-
-    def __getattr__(self, item):
-        if item in map(lambda x: x[0], self.sim_object.inputs + self.sim_object.outputs):
-            return self.sim_object[item]
-        else:
-            raise ValueError('cannot read port "%s" because it is not a bound io' % item)
-
-    def __setattr__(self, key, value):
-        if key == 'sim_object':
-            super().__setattr__(key, value)
-        else:
-            if key in map(lambda x: x[0], self.sim_object.inputs):
-                self.sim_object[key] = value
-            else:
-                raise ValueError('cannot write port "%s" because it is not a bound input' % key)
-
-
-class Internals:
-    """ Exposes the internal signals of the verilator model with standard python syntax:
-
-    sim.internals.__T243
-    Note: We assume that there is no wires named sim_object
-    """
-    def __init__(self, pyverilator_sim):
-        self.sim_object = pyverilator_sim
-
-    def __dir__(self):
-        return map(lambda x: x[0], self.sim_object.internal_signals)
-
-    def __getattr__(self, item):
-        if item in map(lambda x: x[0], self.sim_object.internal_signals):
-            return self.sim_object[item]
-        else:
-            raise ValueError('cannot read port "%s" because it is not an internal signal' % item)
-
+    def tick(self):
+        self.write(0)
+        self.write(1)
 
 class PyVerilator:
     """Python wrapper for verilator model.
@@ -320,6 +296,19 @@ class PyVerilator:
         self.io = get_io_collection(self)
         # self.internals = Internals(self)
         self.internals = get_internal_signal_collection(self)
+        # try to autodetect clock
+        self.clock = None
+        # first look for an io with the name clock or clk (ignoring case)
+        for sig in self.io:
+            if sig.verilator_name.lower() == 'clock' or sig.verilator_name.lower() == 'clk':
+                self.clock = Clock(sig)
+                break
+        # if neither are found, look for names that start with clock or clk
+        if self.clock is None:
+            for sig in self.io:
+                if sig.verilator_name.lower().startswith('clock') or sig.verilator_name.lower().startswith('clk'):
+                    self.clock = Clock(sig)
+                    break
 
     def __del__(self):
         if self.model is not None:
@@ -328,7 +317,6 @@ class PyVerilator:
             fn(self.model)
         if self.lib is not None:
             del self.lib
-
 
     def _read_embedded_data(self):
         self.module_name = ctypes.c_char_p.in_dll(self.lib, '_pyverilator_module_name').value.decode('ascii')
@@ -438,7 +426,7 @@ class PyVerilator:
     def _post_write_hook(self, port_name, value):
         if self.auto_eval:
             self.eval()
-        if port_name == 'CLK' and self.auto_tracing_mode:
+        if self.auto_tracing_mode == 'clock' and port_name == self.clock.verilator_name:
             self.add_to_vcd_trace()
 
     def _sim_init(self):
@@ -476,8 +464,8 @@ class PyVerilator:
 
         if not auto_tracing:
             self.auto_tracing_mode = None
-        elif 'CLK' in self:
-            self.auto_tracing_mode = 'CLK'
+        elif self.clock is not None:
+            self.auto_tracing_mode = 'clock'
         else:
             self.auto_tracing_mode = 'eval'
         self.curr_time = 0

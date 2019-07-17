@@ -52,6 +52,37 @@ class TestPyVerilator(unittest.TestCase):
         test_pyverilator.stop_vcd_trace()
 
     @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_attributes(self):
+        test_verilog = '''
+            module width_test (
+                    input_a,
+                    input_b,
+                    input_c,
+                    input_d,
+                    input_e,
+                    output_concat);
+                input [7:0] input_a;
+                input [15:0] input_b;
+                input [31:0] input_c;
+                input [63:0] input_d;
+                input [127:0] input_e;
+                output [247:0] output_concat;
+                assign output_concat = {input_a, input_b, input_c, input_d, input_e};
+            endmodule'''
+        # write test verilog file
+        with open('width_test.v', 'w') as f:
+            f.write(test_verilog)
+        test_pyverilator = pyverilator.PyVerilator.build('width_test.v')
+
+        test_pyverilator.io.input_a = 0xaa
+        test_pyverilator.io.input_b = 0x1bbb
+        test_pyverilator.io.input_c = 0x3ccccccc
+        test_pyverilator.io.input_d = 0x7ddddddddddddddd
+        test_pyverilator.io.input_e = 0xfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+
+        self.assertEqual(test_pyverilator.io.output_concat.value, 0xaa1bbb3ccccccc7dddddddddddddddfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee)
+
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
     def test_pyverilator_tracing(self):
         test_verilog = '''
             module internal_test (
@@ -94,7 +125,7 @@ class TestPyVerilator(unittest.TestCase):
         # get the full signal name for internal_concat_1 and internal_concat_2
         internal_concat_1_sig_name = None
         internal_concat_2_sig_name = None
-        for sig_name, sig_width in test_pyverilator.internal_signals:
+        for sig_name, _ in test_pyverilator.internal_signals:
             if 'internal_concat_1' in sig_name:
                 internal_concat_1_sig_name = sig_name
             if 'internal_concat_2' in sig_name:
@@ -138,7 +169,7 @@ class TestPyVerilator(unittest.TestCase):
         test_pyverilator.stop_vcd_trace()
 
     @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
-    def test_pyverilator_array_tracing_alternativesyntax(self):
+    def test_pyverilator_array_tracing(self):
         test_verilog = '''
             module reg_file (
                     clk,
@@ -176,7 +207,7 @@ class TestPyVerilator(unittest.TestCase):
 
         def read_reg( idx ):
             test_pyverilator.io.rd_idx = idx
-            return test_pyverilator.io.rd_data
+            return test_pyverilator.io.rd_data.value
 
         # TODO: add tests for getting values from internal arrays of registers once supported by pyverilator
 
@@ -205,4 +236,146 @@ class TestPyVerilator(unittest.TestCase):
 
         test_pyverilator.stop_vcd_trace()
 
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_modular(self):
+        test_verilog = '''
+            module parent_module (
+                    clk,
+                    rst,
+                    in,
+                    out);
+                input clk;
+                input rst;
+                input [7:0] in;
+                output [7:0] out;
 
+                wire [7:0] child_2_out;
+                wire [7:0] child_1_to_child_2;
+
+                reg [7:0] in_reg;
+                reg [7:0] out_reg;
+
+                assign out = out_reg;
+
+                child_module child_1 (clk, rst, in_reg, child_1_to_child_2);
+                child_module child_2 (clk, rst, child_1_to_child_2, child_2_out);
+
+                always @(posedge clk) begin
+                    if (rst == 1) begin
+                        in_reg <= 0;
+                        out_reg <= 0;
+                    end else begin
+                        in_reg <= in;
+                        out_reg <= child_2_out;
+                    end
+                end
+            endmodule'''
+        with open('parent_module.v', 'w') as f:
+            f.write(test_verilog)
+
+        test_verilog = '''
+            module child_module (
+                    clk,
+                    rst,
+                    in,
+                    out);
+                input clk;
+                input rst;
+                input [7:0] in;
+                output [7:0] out;
+
+                reg [7:0] in_reg;
+                reg [7:0] out_reg;
+
+                assign out = out_reg;
+
+                always @(posedge clk) begin
+                    if (rst == 1) begin
+                        in_reg <= 0;
+                        out_reg <= 0;
+                    end else begin
+                        in_reg <= in;
+                        out_reg <= in_reg + 1;
+                    end
+                end
+            endmodule'''
+        with open('child_module.v', 'w') as f:
+            f.write(test_verilog)
+
+        sim = pyverilator.PyVerilator.build('parent_module.v')
+
+        sim.io.rst = 1
+        sim.io.clk = 0
+        sim.io.clk = 1
+        sim.io.rst = 0
+
+        # in is a reserved keyword :(
+        sim.io['in'] = 7
+
+        self.assertEqual(sim.internals.in_reg.value,            0)
+        self.assertEqual(sim.internals.child_1.in_reg.value,    0)
+        self.assertEqual(sim.internals.child_1.out_reg.value,   0)
+        self.assertEqual(sim.internals.child_2.in_reg.value,    0)
+        self.assertEqual(sim.internals.child_2.out_reg.value,   0)
+        self.assertEqual(sim.internals.out_reg.value,           0)
+        self.assertEqual(sim.io.out.value,                      0)
+
+        sim.clock.tick()
+
+        self.assertEqual(sim.internals.in_reg.value,            7)
+        self.assertEqual(sim.internals.child_1.in_reg.value,    0)
+        self.assertEqual(sim.internals.child_1.out_reg.value,   1)
+        self.assertEqual(sim.internals.child_2.in_reg.value,    0)
+        self.assertEqual(sim.internals.child_2.out_reg.value,   1)
+        self.assertEqual(sim.internals.out_reg.value,           0)
+        self.assertEqual(sim.io.out.value,                      0)
+
+        sim.clock.tick()
+
+        self.assertEqual(sim.internals.in_reg.value,            7)
+        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
+        self.assertEqual(sim.internals.child_1.out_reg.value,   1)
+        self.assertEqual(sim.internals.child_2.in_reg.value,    1)
+        self.assertEqual(sim.internals.child_2.out_reg.value,   1)
+        self.assertEqual(sim.internals.out_reg.value,           1)
+        self.assertEqual(sim.io.out.value,                      1)
+
+        sim.clock.tick()
+
+        self.assertEqual(sim.internals.in_reg.value,            7)
+        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
+        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
+        self.assertEqual(sim.internals.child_2.in_reg.value,    1)
+        self.assertEqual(sim.internals.child_2.out_reg.value,   2)
+        self.assertEqual(sim.internals.out_reg.value,           1)
+        self.assertEqual(sim.io.out.value,                      1)
+
+        sim.clock.tick()
+
+        self.assertEqual(sim.internals.in_reg.value,            7)
+        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
+        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
+        self.assertEqual(sim.internals.child_2.in_reg.value,    8)
+        self.assertEqual(sim.internals.child_2.out_reg.value,   2)
+        self.assertEqual(sim.internals.out_reg.value,           2)
+        self.assertEqual(sim.io.out.value,                      2)
+
+        sim.clock.tick()
+
+        self.assertEqual(sim.internals.in_reg.value,            7)
+        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
+        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
+        self.assertEqual(sim.internals.child_2.in_reg.value,    8)
+        self.assertEqual(sim.internals.child_2.out_reg.value,   9)
+        self.assertEqual(sim.internals.out_reg.value,           2)
+        self.assertEqual(sim.io.out.value,                      2)
+
+        sim.clock.tick()
+
+        self.assertEqual(sim.internals.in_reg.value,            7)
+        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
+        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
+        self.assertEqual(sim.internals.child_2.in_reg.value,    8)
+        self.assertEqual(sim.internals.child_2.out_reg.value,   9)
+        self.assertEqual(sim.internals.out_reg.value,           9)
+        self.assertEqual(sim.io.out.value,                      9)

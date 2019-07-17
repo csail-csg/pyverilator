@@ -9,14 +9,14 @@ with tempfile.TemporaryDirectory() as tempdir:
 
     test_verilog = '''
         module pipelined_mac (
-                CLK,
+                clk,
                 rst_n,
                 in_a,
                 in_b,
                 enable,
                 clear,
                 out);
-            input        CLK;
+            input        clk;
             input        rst_n;
             input [15:0] in_a;
             input [15:0] in_b;
@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as tempdir:
 
             reg [31:0] accumulator;
 
-            always @(posedge CLK) begin
+            always @(posedge clk) begin
                 if (rst_n == 0) begin
                     operands_valid <= 0;
                     mul_result_valid <= 0;
@@ -78,8 +78,8 @@ with tempfile.TemporaryDirectory() as tempdir:
 
     # setup a few functions
     def tick_clock():
-        sim.io.CLK = 0
-        sim.io.CLK = 1
+        sim.io.clk = 0
+        sim.io.clk = 1
 
     def reset():
         sim.io.rst_n = 0
