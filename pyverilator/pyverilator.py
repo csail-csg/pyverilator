@@ -8,32 +8,6 @@ import warnings
 import pyverilator.verilatorcpp as template_cpp
 import tclwrapper
 
-def get_io_collection(sim):
-    signals = {}
-    for sig_name, width in sim.inputs:
-        signals[sig_name] = Input(sim, sig_name, width)
-    for sig_name, width in sim.outputs:
-        signals[sig_name] = Output(sim, sig_name, width)
-    return Collection(signals)
-
-def get_internal_signal_collection(sim):
-    internal_signal_hierarchy = {}
-    for verilator_signal_name, width in sim.internal_signals:
-        path = verilator_signal_name.split('__DOT__')[1:-1]
-        short_name = verilator_signal_name.split('__DOT__')[-1]
-        curr_node = internal_signal_hierarchy
-        for module in path:
-            if module not in curr_node:
-                curr_node[module] = {}
-            curr_node = curr_node[module]
-        curr_node[short_name] = InternalSignal(sim, verilator_signal_name, width)
-    def construct_collection(curr_node):
-        for key in curr_node:
-            if isinstance(curr_node[key], dict):
-                curr_node[key] = construct_collection(curr_node[key])
-        return Collection(curr_node)
-    return construct_collection(internal_signal_hierarchy)
-
 class Collection:
     def __init__(self, items):
         self._item_dict = items
@@ -291,12 +265,10 @@ class PyVerilator:
         # get inputs, outputs, internal_signals, and json_data
         self._read_embedded_data()
         self._sim_init()
-        # Allow access to the fields directly from
-        # self.io = IO(self)
-        self.io = get_io_collection(self)
-        # self.internals = Internals(self)
-        self.internals = get_internal_signal_collection(self)
-        # try to autodetect clock
+        # constructor helpers
+        self.io = self._construct_io_collection()
+        self.internals = self._construct_internal_signal_collection()
+        # try to autodetect the clock
         self.clock = None
         # first look for an io with the name clock or clk (ignoring case)
         for sig in self.io:
@@ -348,6 +320,33 @@ class PyVerilator:
         # json_data
         json_string = ctypes.c_char_p.in_dll(self.lib, '_pyverilator_json_data').value.decode('ascii')
         self.json_data = json.loads(json_string)
+
+    def _construct_io_collection(self):
+        signals = {}
+        for sig_name, width in self.inputs:
+            signals[sig_name] = Input(self, sig_name, width)
+        for sig_name, width in self.outputs:
+            signals[sig_name] = Output(self, sig_name, width)
+        return Collection(signals)
+
+    def _construct_internal_signal_collection(self):
+        internal_signal_hierarchy = {}
+        for verilator_signal_name, width in self.internal_signals:
+            path = verilator_signal_name.split('__DOT__')[1:-1]
+            short_name = verilator_signal_name.split('__DOT__')[-1]
+            curr_node = internal_signal_hierarchy
+            for module in path:
+                if module not in curr_node:
+                    curr_node[module] = {}
+                curr_node = curr_node[module]
+            curr_node[short_name] = InternalSignal(self, verilator_signal_name, width)
+        def construct_collection(curr_node):
+            for key in curr_node:
+                if isinstance(curr_node[key], dict):
+                    curr_node[key] = construct_collection(curr_node[key])
+            return Collection(curr_node)
+        return construct_collection(internal_signal_hierarchy)
+
 
     def _read(self, port_name):
         port_width = None
