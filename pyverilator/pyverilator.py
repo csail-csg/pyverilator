@@ -62,7 +62,7 @@ class Collection:
         items_to_show = [self._item_dict[key] for key in keys_to_show]
         column_one = [item.__class__.__name__ for item in items_to_show]
         column_two = keys_to_show
-        column_three = [repr(item).split()[-1] for item in items_to_show]
+        column_three = [repr(item).split()[-1] if not isinstance(item, Collection) else '' for item in items_to_show]
         column_one_width = max(map(len, column_one))
         column_two_width = max(map(len, column_two))
         column_three_width = max(map(len, column_three))
@@ -72,7 +72,7 @@ class Collection:
                 ret += '\n'
             if truncated and i == 10:
                 ret += '    ... %d objects in total ...\n' % num_items
-            fmt_string = '{:<' + str(column_one_width) + '} {:<' + str(column_two_width) + '} {:>' + str(column_three_width) + '}'
+            fmt_string = '{:<' + str(column_one_width) + '}  {:<' + str(column_two_width) + '}  {:>' + str(column_three_width) + '}'
             ret += fmt_string.format(column_one[i], column_two[i], column_three[i])
         return ret
 
