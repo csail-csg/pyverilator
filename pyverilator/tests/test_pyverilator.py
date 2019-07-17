@@ -82,6 +82,13 @@ class TestPyVerilator(unittest.TestCase):
 
         self.assertEqual(test_pyverilator.io.output_concat.value, 0xaa1bbb3ccccccc7dddddddddddddddfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee)
 
+        self.assertTrue(repr(test_pyverilator.io.input_a).endswith("8'haa"))
+        self.assertTrue(repr(test_pyverilator.io.input_b).endswith("16'h1bbb"))
+        self.assertTrue(repr(test_pyverilator.io.input_c).endswith("32'h3ccccccc"))
+        self.assertTrue(repr(test_pyverilator.io.input_d).endswith("64'h7ddddddddddddddd"))
+        self.assertTrue(repr(test_pyverilator.io.input_e).endswith("128'hfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+        self.assertTrue(repr(test_pyverilator.io.output_concat).endswith("248'haa1bbb3ccccccc7dddddddddddddddfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
+
     @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
     def test_pyverilator_tracing(self):
         test_verilog = '''
