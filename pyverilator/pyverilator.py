@@ -102,7 +102,7 @@ class Signal:
 
     def __repr__(self):
         # build a sized verilog hex literal
-        return self.gtkwave_name.split('.')[-1] + ' = ' + str(self.width) + "'h" + hex(self.value())[2:]
+        return self.gtkwave_name.split('.')[-1] + ' = ' + str(self.width) + "'h" + hex(self.value)[2:]
 
 # These classes help improve python error messages
 class Output(Signal):
