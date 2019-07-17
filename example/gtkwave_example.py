@@ -76,46 +76,37 @@ with tempfile.TemporaryDirectory() as tempdir:
         f.write(test_verilog)
     sim = pyverilator.PyVerilator.build('pipelined_mac.v')
 
-    # get the full signal names for registers of interest
-    signals_of_interest = ['operand_a', 'operand_b', 'operands_valid', 'mul_result', 'mul_result_valid', 'accumulator']
-    signals_of_interest_verilator_names = []
-    for interesting_sig in signals_of_interest:
-        for internal_sig, width in sim.internal_signals:
-            if interesting_sig in internal_sig:
-                signals_of_interest_verilator_names.append(internal_sig)
-                break
-    io_of_interest = [x[0] for x in sim.inputs + sim.outputs]
-
     # setup a few functions
     def tick_clock():
-        sim['CLK'] = 0
-        sim['CLK'] = 1
+        sim.io.CLK = 0
+        sim.io.CLK = 1
 
     def reset():
-        sim['rst_n'] = 0
+        sim.io.rst_n = 0
         tick_clock()
-        sim['rst_n'] = 1
-        sim['enable'] = 0
-        sim['clear'] = 0
+        sim.io.rst_n = 1
+        sim.io.enable = 0
+        sim.io.clear = 0
 
     def input_and_tick_clock( a, b ):
-        sim['in_a'] = a
-        sim['in_b'] = b
-        sim['enable'] = 1
-        sim['clear'] = 0
+        sim.io.in_a = a
+        sim.io.in_b = b
+        sim.io.enable = 1
+        sim.io.clear = 0
         tick_clock()
-        sim['enable'] = 0
+        sim.io.enable = 0
 
     def clear_and_tick_clock():
-        sim['enable'] = 0
-        sim['clear'] = 1
+        sim.io.enable = 0
+        sim.io.clear = 1
         tick_clock()
-        sim['clear'] = 0
+        sim.io.clear = 0
 
     sim.start_vcd_trace('test.vcd')
 
     sim.start_gtkwave()
-    sim.send_signals_to_gtkwave(signals_of_interest_verilator_names + io_of_interest)
+    sim.send_signals_to_gtkwave(sim.io)
+    sim.send_signals_to_gtkwave(sim.internals)
 
     reset()
 
@@ -144,10 +135,6 @@ with tempfile.TemporaryDirectory() as tempdir:
                 'input_and_tick_clock(3, -7)',
                 'tick_clock()',
                 'tick_clock()']
-
-    # gtkwave writes to stderr when vcd files are reloaded, so this ignores the
-    # corresponding warning from tclwrapper
-    warnings.filterwarnings('ignore', r'.*\[[0-9]*\] start time.*')
 
     print('Press enter to simulate entering a command (there are %d commands in this demo)' % len(commands))
     for c in commands:

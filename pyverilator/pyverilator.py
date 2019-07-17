@@ -4,9 +4,114 @@ import shutil
 import subprocess
 import json
 import re
+import warnings
 import pyverilator.verilatorcpp as template_cpp
 import tclwrapper
 
+def get_io_collection(sim):
+    signals = {}
+    for sig_name, width in sim.inputs:
+        signals[sig_name] = Input(sim, sig_name, width)
+    for sig_name, width in sim.outputs:
+        signals[sig_name] = Output(sim, sig_name, width)
+    return MyCollection(signals)
+
+def get_internal_signal_collection(sim):
+    internal_signal_hierarchy = {}
+    for verilator_signal_name, width in sim.internal_signals:
+        path = verilator_signal_name.split('__DOT__')[1:-1]
+        short_name = verilator_signal_name.split('__DOT__')[-1]
+        curr_node = internal_signal_hierarchy
+        for module in path:
+            if module not in curr_node:
+                curr_node[module] = {}
+            curr_node = curr_node[module]
+        curr_node[short_name] = InternalSignal(sim, verilator_signal_name, width)
+    def construct_collection(curr_node):
+        for key in curr_node:
+            if isinstance(curr_node[key], dict):
+                curr_node[key] = construct_collection(curr_node[key])
+        return MyCollection(curr_node)
+    return construct_collection(internal_signal_hierarchy)
+
+class MyCollection:
+    def __init__(self, items):
+        self._item_dict = items
+        self._item_dict_keys = list(items.keys())
+
+    def __dir__(self):
+        return self._item_dict_keys
+
+    def __getattr__(self, name):
+        obj = self._item_dict.get(name)
+        if obj is not None:
+            return obj
+        raise AttributeError("'MyCollection' object has no attribute '%s'" % name)
+
+    def __setattr__(self, name, value):
+        if name == '_item_dict' or name == '_item_dict_keys':
+            super().__setattr__(name, value)
+        else:
+            obj = self._item_dict.get(name)
+            if obj is not None:
+                obj.write(value)
+            else:
+                raise Exception('signal "%s" does not exist' % name)
+
+    def __iter__(self):
+        return iter(self._item_dict.values())
+
+class Signal:
+    def __init__(self, pyverilator_sim, verilator_name, width):
+        self.sim_object = pyverilator_sim
+        self.verilator_name = verilator_name
+        self.width = width
+        # construct gtkwave_name
+        self.gtkwave_name = '.'.join(['TOP'] + verilator_name.split('__DOT__'))
+        if width > 1:
+            self.gtkwave_name += '[%d:0]' % (width-1)
+        # get the function and arguments required for getting the signal's value
+        if width <= 32:
+            self.value_function_and_args = (self.sim_object._read_32, self.verilator_name)
+        elif width <= 64:
+            self.value_function_and_args = (self.sim_object._read_64, self.verilator_name)
+        else:
+            self.value_function_and_args = (self.sim_object._read_words, self.verilator_name, (width + 31) // 32)
+
+    def value(self):
+        # this calls the value function (the 0th element of self.value_function_and_args)
+        # with the necessary arguments (the rest of self.value_function_and_args)
+        return self.value_function_and_args[0](*self.value_function_and_args[1:])
+
+    def send_to_gtkwave(self):
+        self.sim_object.send_signal_to_gtkwave(self.gtkwave_name)
+
+    def __repr__(self):
+        # build a sized verilog hex literal
+        return self.gtkwave_name.split('.')[-1] + ' = ' + str(self.width) + "'h" + hex(self.value())[2:]
+
+# These classes help improve python error messages
+class Output(Signal):
+    pass
+
+class InternalSignal(Signal):
+    pass
+
+class Input(Signal):
+    def __init__(self, pyverilator_sim, verilator_name, width):
+        super().__init__(pyverilator_sim, verilator_name, width)
+        if width <= 32:
+            self.write_function_and_args = (self.sim_object._write_32, self.verilator_name)
+        elif width <= 64:
+            self.write_function_and_args = (self.sim_object._write_64, self.verilator_name)
+        else:
+            self.write_function_and_args = (self.sim_object._write_words, self.verilator_name, (width + 31) // 32)
+
+    def write(self, value):
+        self.write_function_and_args[0](*self.write_function_and_args[1:], value)
+
+    def __le__(self, rhs):
+        self.write(rhs)
 
 class IO:
     """ Exposes the io of the verilator model with standard python syntax:
@@ -211,8 +316,10 @@ class PyVerilator:
         self._read_embedded_data()
         self._sim_init()
         # Allow access to the fields directly from
-        self.io = IO(self)
-        self.internals = Internals(self)
+        # self.io = IO(self)
+        self.io = get_io_collection(self)
+        # self.internals = Internals(self)
+        self.internals = get_internal_signal_collection(self)
 
     def __del__(self):
         if self.model is not None:
@@ -307,20 +414,18 @@ class PyVerilator:
             self._write_64(port_name, value)
         else:
             self._write_32(port_name, value)
-        if self.auto_eval:
-            self.eval()
-        if self.auto_tracing_mode == 'CLK' and port_name == 'CLK':
-            self.add_to_vcd_trace()
 
     def _write_32(self, port_name, value):
         fn = getattr(self.lib, 'set_' + port_name)
         fn.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
         fn( self.model, ctypes.c_uint32(value) )
+        self._post_write_hook(port_name, value)
 
     def _write_64(self, port_name, value):
         fn = getattr(self.lib, 'set_' + port_name)
         fn.argtypes = [ctypes.c_void_p, ctypes.c_uint64]
         fn( self.model, ctypes.c_uint64(value) )
+        self._post_write_hook(port_name, value)
 
     def _write_words(self, port_name, num_words, value):
         fn = getattr(self.lib, 'set_' + port_name)
@@ -328,6 +433,13 @@ class PyVerilator:
         for i in range(num_words):
             word = ctypes.c_uint32(value >> (i * 32))
             fn( self.model, i, word )
+        self._post_write_hook(port_name, value)
+
+    def _post_write_hook(self, port_name, value):
+        if self.auto_eval:
+            self.eval()
+        if port_name == 'CLK' and self.auto_tracing_mode:
+            self.add_to_vcd_trace()
 
     def _sim_init(self):
         # initialize all the inputs to 0
@@ -416,6 +528,9 @@ class PyVerilator:
     def start_gtkwave(self):
         if self.vcd_filename is None:
             self.start_vcd_trace(PyVerilator.default_vcd_filename)
+        # in preparation for using tclwrapper with gtkwave, add a warning filter
+        # to ignore expected messages written to stderr for certain commands
+        warnings.filterwarnings('ignore', r".*generated stderr message '\[[0-9]*\] start time.\\n\[[0-9]*\] end time.\\n'")
         self.gtkwave_active = True
         self.gtkwave_tcl = tclwrapper.TCLWrapper('gtkwave', '-W')
         self.gtkwave_tcl.start()
@@ -426,20 +541,46 @@ class PyVerilator:
         new_zf = zf - 5
         self.gtkwave_tcl.eval('gtkwave::setZoomFactor %f' % (new_zf))
 
-    def send_signals_to_gtkwave(self, signal_names):
+    def send_signals_to_gtkwave(self, signals_to_add):
         if not self.gtkwave_active:
             raise ValueError('send_signals_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
-        if not isinstance(signal_names, list):
-            signal_names = [signal_names]
 
-        signal_names_gtkwave = list(map( lambda x: 'TOP.' + x.replace('__DOT__','.'), signal_names ))
-        signal_names_tclstring = '{%s}' % (' '.join(signal_names_gtkwave))
+        # signals_to_add are either Signal objects, gtkwave names, or verilator names
+        # they can be passed in as a single item or in an iterable container
+        if isinstance(signals_to_add, str) or isinstance(signals_to_add, Signal):
+            # only a single object is being added
+            signals_to_add = [signals_to_add]
+        if not isinstance(signals_to_add, list):
+            # convert iterable container to list
+            signals_to_add = list(signals_to_add)
+
+        gtkwave_signal_names = []
+        for sig in signals_to_add:
+            if isinstance(sig, Signal):
+                gtkwave_signal_names.append(sig.gtkwave_name)
+            elif isinstance(sig, str):
+                # assume if the signal name doesn't have a period in it, it is a verilator name
+                if '.' not in sig:
+                    sig = 'TOP.' + sig.replace('__DOT__','.')
+                gtkwave_signal_names.append(sig)
+            else:
+                raise TypeError("Can't add type \"%s\" to gtkwave" % str(type(sig)))
+
+        # to get all the signal names for debugging:
+        # signal_names = tclstring_to_flat_list(self.gtkwave_tcl.eval('''
+        # set nfacs [gtkwave::getNumFacs]
+        # set signal_names []
+        # for {set i 0} {$i < $nfacs} {incr i} {
+        #     lappend signal_names [gtkwave::getFacName $i]
+        # }
+        # puts "$signal_names"
+        # '''))
 
         # find the signals
         num_found_signals = int(self.gtkwave_tcl.eval('''
         set nfacs [gtkwave::getNumFacs]
         set found_signals [list]
-        set target_signals %s
+        set target_signals {%s}
         for {set i 0} {$i < $nfacs} {incr i} {
             set facname [gtkwave::getFacName $i]
             foreach target_sig $target_signals {
@@ -450,15 +591,15 @@ class PyVerilator:
             }
         }
         gtkwave::addSignalsFromList $found_signals
-        ''' % signal_names_tclstring))
+        ''' % ' '.join(gtkwave_signal_names)))
 
-        if num_found_signals < len(signal_names):
-            raise ValueError('send_signals_to_gtkwave was only able to send %d of %d signals' % (num_found_signals, len(signal_names)))
+        if num_found_signals < len(gtkwave_signal_names):
+            raise ValueError('send_signals_to_gtkwave was only able to send %d of %d signals' % (num_found_signals, len(gtkwave_signal_names)))
 
     def send_signal_to_gtkwave(self, signal_name):
         if not self.gtkwave_active:
             raise ValueError('send_signal_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
-        self.send_signals_to_gtkwave(signal_name)
+        self.send_signals_to_gtkwave([signal_name])
 
     def stop_gtkwave(self):
         if not self.gtkwave_active:
