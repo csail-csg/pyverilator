@@ -52,7 +52,7 @@ class Collection:
     def __repr__(self):
         num_items = len(self._item_dict_keys)
         if num_items == 0:
-            return '<empty Collection object>'
+            return '<empty {} object>'.format(self.__class__.__name__)
         truncated = num_items > 25
         if truncated:
             keys_to_show = [self._item_dict_keys[i] for i in range(10)]
@@ -62,12 +62,22 @@ class Collection:
         items_to_show = [self._item_dict[key] for key in keys_to_show]
         column_one = [item.__class__.__name__ for item in items_to_show]
         column_two = keys_to_show
-        column_three = [repr(item).split()[-1] if not isinstance(item, Collection) else '' for item in items_to_show]
+        column_three = []
+        for item in items_to_show:
+            if isinstance(item, Collection):
+                column_three.append('{} items'.format(len(item._item_dict_keys)))
+            else:
+                status = '<unknown status>'
+                try:
+                    status = item.status
+                except:
+                    pass
+                column_three.append(status)
         column_one_width = max(map(len, column_one))
         column_two_width = max(map(len, column_two))
         column_three_width = max(map(len, column_three))
         ret = ''
-        for i in range(num_items):
+        for i in range(len(items_to_show)):
             if i != 0:
                 ret += '\n'
             if truncated and i == 10:
@@ -99,14 +109,22 @@ class Signal:
         # with the necessary arguments (the rest of self.value_function_and_args)
         return self.value_function_and_args[0](*self.value_function_and_args[1:])
 
+    @property
+    def status(self):
+        return str(self.width) + "'h" + hex(self.value)[2:]
+
     def send_to_gtkwave(self):
         self.sim_object.send_signal_to_gtkwave(self.gtkwave_name)
 
     def __repr__(self):
         # build a sized verilog hex literal
-        return self.gtkwave_name.split('.')[-1] + ' = ' + str(self.width) + "'h" + hex(self.value)[2:]
+        short_name = self.gtkwave_name.split('.')[-1]
+        return '{} = {}'.format(short_name, self.status)
 
 # These classes help improve python error messages
+class Submodule(Collection):
+    pass
+
 class Output(Signal):
     pass
 
@@ -368,13 +386,15 @@ class PyVerilator:
                     curr_node[module] = {}
                 curr_node = curr_node[module]
             curr_node[short_name] = InternalSignal(self, verilator_signal_name, width)
-        def construct_collection(curr_node):
+        def construct_collection(curr_node, top_level = True):
             for key in curr_node:
                 if isinstance(curr_node[key], dict):
-                    curr_node[key] = construct_collection(curr_node[key])
-            return Collection(curr_node)
+                    curr_node[key] = construct_collection(curr_node[key], False)
+            if top_level:
+                return Collection(curr_node)
+            else:
+                return Submodule(curr_node)
         return construct_collection(internal_signal_hierarchy)
-
 
     def _read(self, port_name):
         port_width = None
