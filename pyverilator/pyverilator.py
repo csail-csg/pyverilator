@@ -92,7 +92,17 @@ class Signal:
         self.verilator_name = verilator_name
         self.width = width
         # construct gtkwave_name
-        self.gtkwave_name = '.'.join(['TOP'] + verilator_name.split('__DOT__'))
+        # in Verilator, AstNode::encodeName does name mangling, so we want to do the reverse to get the gtkwave name
+        # we replace __0xx with char(xx) where xx is a 2-digit hex number
+        split_at_escaped_char = verilator_name.split('__0')
+        self.gtkwave_name = split_at_escaped_char[0]
+        for i in range(1, len(split_at_escaped_char)):
+            char_num = int(split_at_escaped_char[i][0:2], base = 16)
+            self.gtkwave_name += chr(char_num) + split_at_escaped_char[i][2:]
+        # we also replace __DOT__ with ., and add TOP. to the beginning
+        self.gtkwave_name = '.'.join(self.gtkwave_name.split('__DOT__'))
+        self.gtkwave_name = 'TOP.' + self.gtkwave_name
+        # and add [<width-1>:0] for multibit signals
         if width > 1:
             self.gtkwave_name += '[%d:0]' % (width-1)
         # get the function and arguments required for getting the signal's value

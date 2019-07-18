@@ -386,3 +386,36 @@ class TestPyVerilator(unittest.TestCase):
         self.assertEqual(sim.internals.child_2.out_reg.value,   9)
         self.assertEqual(sim.internals.out_reg.value,           9)
         self.assertEqual(sim.io.out.value,                      9)
+
+    @unittest.skipIf(shutil.which('verilator') is None or shutil.which('gtkwave') is None, "test requires verilator and gtkwave to be in the path")
+    def test_pyverilator_variable_names(self):
+        # the last few names have a \ before them because they are required
+        # for verilog, but are not really part of the name
+        variable_names = ['a', '_a', '__a', '___a', 'a_', 'a__', 'a___', 'a_a', 'a__a', 'a___a', 'a__020a', r'\$^_^', r'\%20', r'\007']
+
+        test_verilog = 'module variable_name_test( '
+        test_verilog += ' , '.join(['input ' + var for var in variable_names] + ['output ' + var + '_out' for var in variable_names])
+        test_verilog += ' );\n'
+        for var in variable_names:
+            test_verilog += '    assign {}_out = {} ;\n'.format(var, var)
+        test_verilog += 'endmodule\n'
+
+        # write test verilog file
+        with open('variable_name_test.v', 'w') as f:
+            f.write(test_verilog)
+        sim = pyverilator.PyVerilator.build('variable_name_test.v')
+
+        io_gtkwave_names = [io.gtkwave_name for io in sim.io]
+        for var in variable_names:
+            if var.startswith('\\'):
+                var = var[1:]
+            self.assertIn('TOP.' + var, io_gtkwave_names)
+            self.assertIn('TOP.' + var + '_out', io_gtkwave_names)
+
+        # for var in variable_names:
+        #     sim[var] = 0
+        #     self.assertEqual(sim[var + '_out'], 0)
+        #     sim[var] = 1
+        #     self.assertEqual(sim[var + '_out'], 1)
+        #     sim[var] = 0
+        #     self.assertEqual(sim[var + '_out'], 0)
