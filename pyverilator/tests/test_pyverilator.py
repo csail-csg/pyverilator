@@ -316,8 +316,11 @@ class TestPyVerilator(unittest.TestCase):
         sim.io.clk = 1
         sim.io.rst = 0
 
-        # in is a reserved keyword :(
-        sim.io['in'] = 7
+        # in is a reserved keyword in python, so it must be accessed
+        # using dictionary syntax:
+        # sim.io['in'] = 7
+        # or it must be escaped python-style:
+        sim.io.in_ = 7
 
         self.assertEqual(sim.internals.in_reg.value,            0)
         self.assertEqual(sim.internals.child_1.in_reg.value,    0)
@@ -391,7 +394,7 @@ class TestPyVerilator(unittest.TestCase):
     def test_pyverilator_variable_names(self):
         # the last few names have a \ before them because they are required
         # for verilog, but are not really part of the name
-        variable_names = ['a', '_a', '__a', '___a', 'a_', 'a__', 'a___', 'a_a', 'a__a', 'a___a', 'a__020a', r'\$^_^', r'\%20', r'\007']
+        variable_names = ['a', '_a', '__a', '___a', 'a_', 'a__', 'a___', 'a_a', 'a__a', 'a___a', 'a__020a', r'\$^_^', r'\%20', r'\007', r'\.][.']
 
         test_verilog = 'module variable_name_test( '
         test_verilog += ' , '.join(['input ' + var for var in variable_names] + ['output ' + var + '_out' for var in variable_names])
@@ -412,10 +415,12 @@ class TestPyVerilator(unittest.TestCase):
             self.assertIn('TOP.' + var, io_gtkwave_names)
             self.assertIn('TOP.' + var + '_out', io_gtkwave_names)
 
-        # for var in variable_names:
-        #     sim[var] = 0
-        #     self.assertEqual(sim[var + '_out'], 0)
-        #     sim[var] = 1
-        #     self.assertEqual(sim[var + '_out'], 1)
-        #     sim[var] = 0
-        #     self.assertEqual(sim[var + '_out'], 0)
+        for var in variable_names:
+            if var.startswith('\\'):
+                var = var[1:]
+            sim.io[var] = 0
+            self.assertEqual(sim.io[var + '_out'].value, 0)
+            sim.io[var] = 1
+            self.assertEqual(sim.io[var + '_out'].value, 1)
+            sim.io[var] = 0
+            self.assertEqual(sim.io[var + '_out'].value, 0)

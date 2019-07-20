@@ -5,10 +5,72 @@ import subprocess
 import json
 import re
 import warnings
+from keyword import iskeyword
 import pyverilator.verilatorcpp as template_cpp
 import tclwrapper
 
+def verilator_name_to_standard_modular_name(verilator_name):
+    """Converts a name exposed in Verilator to its standard name.
+
+    Verilator encodes raw signal names using its AstNode::encodeName function.
+    In that function, illegal characters are replaced with the character sequence
+    '__0xx' where xx is the capitalized hex ascii value of the substituted character.
+    Illegal characters include:
+        1) All non alpha-numeric characters except '_'
+        2) A leading number
+        3) A second '_' in a row (only the second is substituted)
+
+    At different points in Verilator, there are other substitutions made. These
+    substitutions mean special things and are done after the raw signal name is
+    encoded with AstNode::encodeName. For example, if '.' is used in a signal name,
+    it appears as '__02E', but if '.' is used to denote a module hierarchy, '__DOT__'
+    is used instead of '.'
+        1) '__DOT__' is used in place of '.' (module hierarchy)
+        2) '__BRA__' is used in place of '[' (array indexing)
+        3) '__KET__' is used in place of ']' (array indexing)
+
+    In addition, sometimes '__PVT__' is added to verilator names to mark them as private.
+    They can be replaced with ''."""
+
+    if '__BRA__' in verilator_name or '__KET__' in verilator_name:
+        raise NotImplementedError('__BRA__ and __KET__ are not currently supported')
+
+    modular_verilator_name = verilator_name.split('__DOT__')
+    final_modular_name = []
+    for name_segment in modular_verilator_name:
+        split_at_escape_char = name_segment.split('__0')
+        final_name_segment = ''
+        for i in range(len(split_at_escape_char)):
+            if i == 0:
+                final_name_segment += split_at_escape_char[i]
+            else:
+                escaped_char = chr(int(split_at_escape_char[i][0:2], 16))
+                final_name_segment += escaped_char + split_at_escape_char[i][2:]
+        final_modular_name.append(final_name_segment)
+    return tuple(final_modular_name)
+
 class Collection:
+    """Dictionary-like container for storing Signals and other Collections for PyVerilator.
+
+    The item interface x['my_sig'] (__getitem__ and __setitem__) uses the verbatim names
+    of the signals as seen in Verilog.
+
+    The attribute interface x.my_sig (__getattr__ and __setattr__) only allows accessing
+    signals which are legal Python identifiers with some exceptions. There are a few things
+    going on behind the scenes that can have unexpected results:
+
+    1) Signals which are legal Python identifiers can be accessed by adding '_' to the
+       end of the signal name. This allows the signal 'in' to be accessed using 'x.in_'.
+       If there is another signal named 'in_', then 'x.in_' will return 'in_' instead.
+    2) Signals which start with '__' but do not end with '__' are treated as class-local
+       variables in Python, and '_<classname>__' is added as a prefix before the __getattr__
+       function is called. A signal starting with '__' (such as '__rst') can be used as an
+       attribute, but if there is another signal called '_Collection__rst', then 'x.__rst'
+       will return '_Collection__rst'.
+    3) Signals which match an existing member of this class (e.g. _item_dict,
+       _item_dict_keys, __init__, and other __X__ functions) can not be accessed by attribute.
+    """
+
     def __init__(self, items):
         self._item_dict = items
         self._item_dict_keys = list(items.keys())
@@ -21,6 +83,17 @@ class Collection:
         obj = self._item_dict.get(name)
         if obj is not None:
             return obj
+        # allow python keywords to be escaped by appending an underscore
+        if name.endswith('_') and iskeyword(name[:-1]):
+            obj = self._item_dict.get(name[:-1])
+            if obj is not None:
+                return obj
+        # also allow names starting with two underscores that were turned into class local variables
+        class_local_prefix = '_' + self.__class__.__name__ + '__'
+        if name.startswith(class_local_prefix):
+            obj = self._item_dict.get(name[len(class_local_prefix):])
+            if obj is not None:
+                return obj
         raise AttributeError("'Collection' object has no attribute '%s'" % name)
 
     def __getitem__(self, name):
@@ -42,7 +115,18 @@ class Collection:
         else:
             obj = self._item_dict.get(name)
             if obj is not None:
-                obj.write(value)
+                return obj.write(value)
+            # allow python keywords to be escaped by appending an underscore
+            if name.endswith('_') and iskeyword(name[:-1]):
+                obj = self._item_dict.get(name[:-1])
+                if obj is not None:
+                    return obj.write(value)
+            # also allow names starting with two underscores that were turned into class local variables
+            class_local_prefix = '_' + self.__class__.__name__ + '__'
+            if name.startswith(class_local_prefix):
+                obj = self._item_dict.get(name[len(class_local_prefix):])
+                if obj is not None:
+                    return obj.write(value)
             else:
                 raise ValueError('signal "%s" does not exist' % name)
 
@@ -90,19 +174,10 @@ class Signal:
     def __init__(self, pyverilator_sim, verilator_name, width):
         self.sim_object = pyverilator_sim
         self.verilator_name = verilator_name
+        self.modular_name = verilator_name_to_standard_modular_name(verilator_name)
         self.width = width
         # construct gtkwave_name
-        # in Verilator, AstNode::encodeName does name mangling, so we want to do the reverse to get the gtkwave name
-        # we replace __0xx with char(xx) where xx is a 2-digit hex number
-        split_at_escaped_char = verilator_name.split('__0')
-        self.gtkwave_name = split_at_escaped_char[0]
-        for i in range(1, len(split_at_escaped_char)):
-            char_num = int(split_at_escaped_char[i][0:2], base = 16)
-            self.gtkwave_name += chr(char_num) + split_at_escaped_char[i][2:]
-        # we also replace __DOT__ with ., and add TOP. to the beginning
-        self.gtkwave_name = '.'.join(self.gtkwave_name.split('__DOT__'))
-        self.gtkwave_name = 'TOP.' + self.gtkwave_name
-        # and add [<width-1>:0] for multibit signals
+        self.gtkwave_name = 'TOP.' + '.'.join(self.modular_name)
         if width > 1:
             self.gtkwave_name += '[%d:0]' % (width-1)
         # get the function and arguments required for getting the signal's value
@@ -123,12 +198,15 @@ class Signal:
     def status(self):
         return str(self.width) + "'h" + hex(self.value)[2:]
 
+    @property
+    def short_name(self):
+        return self.modular_name[-1]
+
     def send_to_gtkwave(self):
         self.sim_object.send_signal_to_gtkwave(self.gtkwave_name)
 
     def __repr__(self):
-        # build a sized verilog hex literal
-        short_name = self.gtkwave_name.split('.')[-1]
+        short_name = self.modular_name[-1]
         return '{} = {}'.format(short_name, self.status)
 
 # These classes help improve python error messages
@@ -380,22 +458,25 @@ class PyVerilator:
     def _construct_io_collection(self):
         signals = {}
         for sig_name, width in self.inputs:
-            signals[sig_name] = Input(self, sig_name, width)
+            sig = Input(self, sig_name, width)
+            signals[sig.short_name] = sig
         for sig_name, width in self.outputs:
-            signals[sig_name] = Output(self, sig_name, width)
+            sig = Output(self, sig_name, width)
+            signals[sig.short_name] = sig
         return Collection(signals)
 
     def _construct_internal_signal_collection(self):
         internal_signal_hierarchy = {}
         for verilator_signal_name, width in self.internal_signals:
-            path = verilator_signal_name.split('__DOT__')[1:-1]
-            short_name = verilator_signal_name.split('__DOT__')[-1]
+            sig = InternalSignal(self, verilator_signal_name, width)
+            # module_name always starts with the top-module and ends with the short name
+            modular_path = sig.modular_name[1:-1]
             curr_node = internal_signal_hierarchy
-            for module in path:
+            for module in modular_path:
                 if module not in curr_node:
                     curr_node[module] = {}
                 curr_node = curr_node[module]
-            curr_node[short_name] = InternalSignal(self, verilator_signal_name, width)
+            curr_node[sig.short_name] = sig
         def construct_collection(curr_node, top_level = True):
             for key in curr_node:
                 if isinstance(curr_node[key], dict):
