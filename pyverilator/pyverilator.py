@@ -52,6 +52,10 @@ def verilator_name_to_standard_modular_name(verilator_name):
 class Collection:
     """Dictionary-like container for storing Signals and other Collections for PyVerilator.
 
+    When they exists, this class calls 'collection_get' and 'collection_set' when getting
+    and setting an element in the collection. If those functions don't exists, getting
+    an item just returns the item, and setting an item raises an exception.
+
     The item interface x['my_sig'] (__getitem__ and __setitem__) uses the verbatim names
     of the signals as seen in Verilog.
 
@@ -81,54 +85,73 @@ class Collection:
 
     def __getattr__(self, name):
         obj = self._item_dict.get(name)
-        if obj is not None:
-            return obj
         # allow python keywords to be escaped by appending an underscore
-        if name.endswith('_') and iskeyword(name[:-1]):
-            obj = self._item_dict.get(name[:-1])
-            if obj is not None:
-                return obj
+        if obj is None:
+            if name.endswith('_') and iskeyword(name[:-1]):
+                obj = self._item_dict.get(name[:-1])
         # also allow names starting with two underscores that were turned into class local variables
-        class_local_prefix = '_' + self.__class__.__name__ + '__'
-        if name.startswith(class_local_prefix):
-            obj = self._item_dict.get(name[len(class_local_prefix):])
-            if obj is not None:
+        if obj is None:
+            class_local_prefix = '_' + self.__class__.__name__ + '__'
+            if name.startswith(class_local_prefix):
+                obj = self._item_dict.get(name[len(class_local_prefix):])
+        if obj is not None:
+            try:
+                # try to call collection_get()
+                ret = obj.collection_get()
+                return ret
+            except:
+                # if that fails, just return the object
                 return obj
-        raise AttributeError("'Collection' object has no attribute '%s'" % name)
+        else:
+            raise AttributeError("'Collection' object has no attribute '%s'" % name)
 
     def __getitem__(self, name):
         obj = self._item_dict.get(name)
         if obj is not None:
-            return obj
+            try:
+                # try to call collection_get()
+                ret = obj.collection_get()
+                return ret
+            except:
+                # if that fails, just return the object
+                return obj
         raise ValueError("'Collection' object has no item '%s'" % name)
 
     def __setitem__(self, name, value):
         obj = self._item_dict.get(name)
         if obj is not None:
-            obj.write(value)
+            try:
+                obj.collection_set(value)
+            except:
+                raise TypeError("Item '%s' can not be set")
         else:
-            raise ValueError('signal "%s" does not exist' % name)
+            raise ValueError('Item "%s" does not exist' % name)
 
     def __setattr__(self, name, value):
         if name == '_item_dict' or name == '_item_dict_keys':
             super().__setattr__(name, value)
         else:
             obj = self._item_dict.get(name)
-            if obj is not None:
-                return obj.write(value)
             # allow python keywords to be escaped by appending an underscore
-            if name.endswith('_') and iskeyword(name[:-1]):
-                obj = self._item_dict.get(name[:-1])
-                if obj is not None:
-                    return obj.write(value)
+            if obj is None:
+                if name.endswith('_') and iskeyword(name[:-1]):
+                    obj = self._item_dict.get(name[:-1])
             # also allow names starting with two underscores that were turned into class local variables
-            class_local_prefix = '_' + self.__class__.__name__ + '__'
-            if name.startswith(class_local_prefix):
-                obj = self._item_dict.get(name[len(class_local_prefix):])
-                if obj is not None:
-                    return obj.write(value)
+            if obj is None:
+                class_local_prefix = '_' + self.__class__.__name__ + '__'
+                if name.startswith(class_local_prefix):
+                    obj = self._item_dict.get(name[len(class_local_prefix):])
+            if obj is not None:
+                try:
+                    # try to call collection_set()
+                    obj.collection_set(value)
+                except:
+                    raise TypeError("Item '%s' can not be set")
             else:
-                raise ValueError('signal "%s" does not exist' % name)
+                raise ValueError('Item "%s" does not exist' % name)
+
+    def __contains__(self, item_name):
+        return item_name in self._item_dict
 
     def __iter__(self):
         return iter(self._item_dict.values())
@@ -150,6 +173,8 @@ class Collection:
         for item in items_to_show:
             if isinstance(item, Collection):
                 column_three.append('{} items'.format(len(item._item_dict_keys)))
+            elif isinstance(item, str):
+                column_three.append('"%s"' % item)
             else:
                 status = '<unknown status>'
                 try:
@@ -205,9 +230,38 @@ class Signal:
     def send_to_gtkwave(self):
         self.sim_object.send_signal_to_gtkwave(self.gtkwave_name)
 
+    def collection_get(self):
+        return SignalValue(self)
+
     def __repr__(self):
         short_name = self.modular_name[-1]
         return '{} = {}'.format(short_name, self.status)
+
+class SignalValue(int):
+    """Holds specific value from reading a signal.
+
+    This class is derived from int to allow for integer operations like:
+        sim.io.output == 1
+    It also allows users to perform other tasks:
+        sim.io.output.send_to_gtkwave()
+    And it allows the user to get the signal object:
+        sim.io.output.signal
+    """
+
+    def __new__(cls, signal, value = None):
+        if value is None:
+            value = signal.value
+        ret = super().__new__(cls, value)
+        ret.signal = signal
+        ret.value = value
+        return ret
+
+    def send_to_gtkwave(self):
+        self.signal.sim_object.send_signal_to_gtkwave(self.signal)
+
+    def __repr__(self):
+        hex_string = str(self.signal.width) + "'h" + hex(self.value)[2:]
+        return hex_string
 
 # These classes help improve python error messages
 class Submodule(Collection):
@@ -232,8 +286,8 @@ class Input(Signal):
     def write(self, value):
         self.write_function_and_args[0](*self.write_function_and_args[1:], value)
 
-    def __le__(self, rhs):
-        self.write(rhs)
+    def collection_set(self, value):
+        self.write(value)
 
 class Clock(Input):
     def __init__(self, input_):
