@@ -80,7 +80,7 @@ class TestPyVerilator(unittest.TestCase):
         test_pyverilator.io.input_d = 0x7ddddddddddddddd
         test_pyverilator.io.input_e = 0xfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 
-        self.assertEqual(test_pyverilator.io.output_concat.value, 0xaa1bbb3ccccccc7dddddddddddddddfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee)
+        self.assertEqual(test_pyverilator.io.output_concat, 0xaa1bbb3ccccccc7dddddddddddddddfeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee)
 
         self.assertTrue(repr(test_pyverilator.io.input_a).endswith("8'haa"))
         self.assertTrue(repr(test_pyverilator.io.input_b).endswith("16'h1bbb"))
@@ -214,7 +214,7 @@ class TestPyVerilator(unittest.TestCase):
 
         def read_reg( idx ):
             test_pyverilator.io.rd_idx = idx
-            return test_pyverilator.io.rd_data.value
+            return test_pyverilator.io.rd_data
 
         # TODO: add tests for getting values from internal arrays of registers once supported by pyverilator
 
@@ -322,73 +322,73 @@ class TestPyVerilator(unittest.TestCase):
         # or it must be escaped python-style:
         sim.io.in_ = 7
 
-        self.assertEqual(sim.internals.in_reg.value,            0)
-        self.assertEqual(sim.internals.child_1.in_reg.value,    0)
-        self.assertEqual(sim.internals.child_1.out_reg.value,   0)
-        self.assertEqual(sim.internals.child_2.in_reg.value,    0)
-        self.assertEqual(sim.internals.child_2.out_reg.value,   0)
-        self.assertEqual(sim.internals.out_reg.value,           0)
-        self.assertEqual(sim.io.out.value,                      0)
+        self.assertEqual(sim.internals.in_reg,          0)
+        self.assertEqual(sim.internals.child_1.in_reg,  0)
+        self.assertEqual(sim.internals.child_1.out_reg, 0)
+        self.assertEqual(sim.internals.child_2.in_reg,  0)
+        self.assertEqual(sim.internals.child_2.out_reg, 0)
+        self.assertEqual(sim.internals.out_reg,         0)
+        self.assertEqual(sim.io.out,                    0)
 
         sim.clock.tick()
 
-        self.assertEqual(sim.internals.in_reg.value,            7)
-        self.assertEqual(sim.internals.child_1.in_reg.value,    0)
-        self.assertEqual(sim.internals.child_1.out_reg.value,   1)
-        self.assertEqual(sim.internals.child_2.in_reg.value,    0)
-        self.assertEqual(sim.internals.child_2.out_reg.value,   1)
-        self.assertEqual(sim.internals.out_reg.value,           0)
-        self.assertEqual(sim.io.out.value,                      0)
+        self.assertEqual(sim.internals.in_reg,          7)
+        self.assertEqual(sim.internals.child_1.in_reg,  0)
+        self.assertEqual(sim.internals.child_1.out_reg, 1)
+        self.assertEqual(sim.internals.child_2.in_reg,  0)
+        self.assertEqual(sim.internals.child_2.out_reg, 1)
+        self.assertEqual(sim.internals.out_reg,         0)
+        self.assertEqual(sim.io.out,                    0)
 
         sim.clock.tick()
 
-        self.assertEqual(sim.internals.in_reg.value,            7)
-        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
-        self.assertEqual(sim.internals.child_1.out_reg.value,   1)
-        self.assertEqual(sim.internals.child_2.in_reg.value,    1)
-        self.assertEqual(sim.internals.child_2.out_reg.value,   1)
-        self.assertEqual(sim.internals.out_reg.value,           1)
-        self.assertEqual(sim.io.out.value,                      1)
+        self.assertEqual(sim.internals.in_reg,          7)
+        self.assertEqual(sim.internals.child_1.in_reg,  7)
+        self.assertEqual(sim.internals.child_1.out_reg, 1)
+        self.assertEqual(sim.internals.child_2.in_reg,  1)
+        self.assertEqual(sim.internals.child_2.out_reg, 1)
+        self.assertEqual(sim.internals.out_reg,         1)
+        self.assertEqual(sim.io.out,                    1)
 
         sim.clock.tick()
 
-        self.assertEqual(sim.internals.in_reg.value,            7)
-        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
-        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
-        self.assertEqual(sim.internals.child_2.in_reg.value,    1)
-        self.assertEqual(sim.internals.child_2.out_reg.value,   2)
-        self.assertEqual(sim.internals.out_reg.value,           1)
-        self.assertEqual(sim.io.out.value,                      1)
+        self.assertEqual(sim.internals.in_reg,          7)
+        self.assertEqual(sim.internals.child_1.in_reg,  7)
+        self.assertEqual(sim.internals.child_1.out_reg, 8)
+        self.assertEqual(sim.internals.child_2.in_reg,  1)
+        self.assertEqual(sim.internals.child_2.out_reg, 2)
+        self.assertEqual(sim.internals.out_reg,         1)
+        self.assertEqual(sim.io.out,                    1)
 
         sim.clock.tick()
 
-        self.assertEqual(sim.internals.in_reg.value,            7)
-        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
-        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
-        self.assertEqual(sim.internals.child_2.in_reg.value,    8)
-        self.assertEqual(sim.internals.child_2.out_reg.value,   2)
-        self.assertEqual(sim.internals.out_reg.value,           2)
-        self.assertEqual(sim.io.out.value,                      2)
+        self.assertEqual(sim.internals.in_reg,          7)
+        self.assertEqual(sim.internals.child_1.in_reg,  7)
+        self.assertEqual(sim.internals.child_1.out_reg, 8)
+        self.assertEqual(sim.internals.child_2.in_reg,  8)
+        self.assertEqual(sim.internals.child_2.out_reg, 2)
+        self.assertEqual(sim.internals.out_reg,         2)
+        self.assertEqual(sim.io.out,                    2)
 
         sim.clock.tick()
 
-        self.assertEqual(sim.internals.in_reg.value,            7)
-        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
-        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
-        self.assertEqual(sim.internals.child_2.in_reg.value,    8)
-        self.assertEqual(sim.internals.child_2.out_reg.value,   9)
-        self.assertEqual(sim.internals.out_reg.value,           2)
-        self.assertEqual(sim.io.out.value,                      2)
+        self.assertEqual(sim.internals.in_reg,          7)
+        self.assertEqual(sim.internals.child_1.in_reg,  7)
+        self.assertEqual(sim.internals.child_1.out_reg, 8)
+        self.assertEqual(sim.internals.child_2.in_reg,  8)
+        self.assertEqual(sim.internals.child_2.out_reg, 9)
+        self.assertEqual(sim.internals.out_reg,         2)
+        self.assertEqual(sim.io.out,                    2)
 
         sim.clock.tick()
 
-        self.assertEqual(sim.internals.in_reg.value,            7)
-        self.assertEqual(sim.internals.child_1.in_reg.value,    7)
-        self.assertEqual(sim.internals.child_1.out_reg.value,   8)
-        self.assertEqual(sim.internals.child_2.in_reg.value,    8)
-        self.assertEqual(sim.internals.child_2.out_reg.value,   9)
-        self.assertEqual(sim.internals.out_reg.value,           9)
-        self.assertEqual(sim.io.out.value,                      9)
+        self.assertEqual(sim.internals.in_reg,          7)
+        self.assertEqual(sim.internals.child_1.in_reg,  7)
+        self.assertEqual(sim.internals.child_1.out_reg, 8)
+        self.assertEqual(sim.internals.child_2.in_reg,  8)
+        self.assertEqual(sim.internals.child_2.out_reg, 9)
+        self.assertEqual(sim.internals.out_reg,         9)
+        self.assertEqual(sim.io.out,                    9)
 
     @unittest.skipIf(shutil.which('verilator') is None or shutil.which('gtkwave') is None, "test requires verilator and gtkwave to be in the path")
     def test_pyverilator_variable_names(self):
@@ -419,8 +419,8 @@ class TestPyVerilator(unittest.TestCase):
             if var.startswith('\\'):
                 var = var[1:]
             sim.io[var] = 0
-            self.assertEqual(sim.io[var + '_out'].value, 0)
+            self.assertEqual(sim.io[var + '_out'], 0)
             sim.io[var] = 1
-            self.assertEqual(sim.io[var + '_out'].value, 1)
+            self.assertEqual(sim.io[var + '_out'], 1)
             sim.io[var] = 0
-            self.assertEqual(sim.io[var + '_out'].value, 0)
+            self.assertEqual(sim.io[var + '_out'], 0)
