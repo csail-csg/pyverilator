@@ -4,6 +4,7 @@ import pyverilator
 # setup build directory and cd to it
 build_dir = os.path.join(os.path.dirname(__file__), 'build', os.path.basename(__file__))
 os.makedirs(build_dir, exist_ok = True)
+os.chdir(build_dir)
 
 test_verilog = '''
     module pipelined_mac (
