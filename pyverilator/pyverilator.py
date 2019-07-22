@@ -12,6 +12,10 @@ import tclwrapper
 def verilator_name_to_standard_modular_name(verilator_name):
     """Converts a name exposed in Verilator to its standard name.
 
+    In short, this function decodes special character encodings used by
+    Verilator to get C++ friendly names, and it drops the top-level module
+    name.
+
     Verilator encodes raw signal names using its AstNode::encodeName function.
     In that function, illegal characters are replaced with the character sequence
     '__0xx' where xx is the capitalized hex ascii value of the substituted character.
@@ -36,6 +40,11 @@ def verilator_name_to_standard_modular_name(verilator_name):
         raise NotImplementedError('__BRA__ and __KET__ are not currently supported')
 
     modular_verilator_name = verilator_name.split('__DOT__')
+    if len(modular_verilator_name) > 1:
+        # If there is at least one __DOT__ in the verilator signal name, then
+        # the first level of the hierarchy is the top-level module name which
+        # can be dropped.
+        modular_verilator_name = modular_verilator_name[1:]
     final_modular_name = []
     for name_segment in modular_verilator_name:
         split_at_escape_char = name_segment.split('__0')
@@ -232,7 +241,7 @@ class Signal:
         self.modular_name = verilator_name_to_standard_modular_name(verilator_name)
         self.width = width
         # construct gtkwave_name
-        self.gtkwave_name = 'TOP.' + '.'.join(self.modular_name)
+        self.gtkwave_name = 'TOP.{}.'.format(self.sim_object.module_name) + '.'.join(self.modular_name)
         if width > 1:
             self.gtkwave_name += '[%d:0]' % (width-1)
         # get the function and arguments required for getting the signal's value
@@ -552,7 +561,7 @@ class PyVerilator:
             all_signals[sig.modular_name] = sig
         for sig_name, width in self.internal_signals:
             sig = Output(self, sig_name, width)
-            internals_dict[sig.modular_name[1:]] = sig
+            internals_dict[sig.modular_name] = sig
             all_signals[sig.modular_name] = sig
         self.io = Collection(io_dict)
         self.internals = Collection.build_nested_collection(internals_dict, Submodule)
