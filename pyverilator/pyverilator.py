@@ -162,7 +162,7 @@ class Collection:
             try:
                 obj.collection_set(value)
             except:
-                raise TypeError("Item '%s' can not be set")
+                raise TypeError("Item '%s' can not be set" % name)
         else:
             raise ValueError('Item "%s" does not exist' % name)
 
@@ -185,7 +185,7 @@ class Collection:
                     # try to call collection_set()
                     obj.collection_set(value)
                 except:
-                    raise TypeError("Item '%s' can not be set")
+                    raise TypeError("Item '%s' can not be set" % name)
             else:
                 raise ValueError('Item "%s" does not exist' % name)
 
@@ -193,7 +193,7 @@ class Collection:
         return item_name in self._item_dict
 
     def __iter__(self):
-        return iter(self._item_dict.values())
+        return iter(self._item_dict)
 
     def __repr__(self):
         num_items = len(self._item_dict_keys)
@@ -240,10 +240,6 @@ class Signal:
         self.verilator_name = verilator_name
         self.modular_name = verilator_name_to_standard_modular_name(verilator_name)
         self.width = width
-        # construct gtkwave_name
-        self.gtkwave_name = 'TOP.{}.'.format(self.sim_object.module_name) + '.'.join(self.modular_name)
-        if width > 1:
-            self.gtkwave_name += '[%d:0]' % (width-1)
         # get the function and arguments required for getting the signal's value
         if width <= 32:
             self.value_function_and_args = (self.sim_object._read_32, self.verilator_name)
@@ -267,7 +263,7 @@ class Signal:
         return self.modular_name[-1]
 
     def send_to_gtkwave(self):
-        self.sim_object.send_signal_to_gtkwave(self.gtkwave_name)
+        self.sim_object.send_signal_to_gtkwave(self)
 
     def collection_get(self):
         return SignalValue(self)
@@ -497,15 +493,15 @@ class PyVerilator:
         # try to autodetect the clock
         self.clock = None
         # first look for an io with the name clock or clk (ignoring case)
-        for sig in self.io:
-            if sig.verilator_name.lower() == 'clock' or sig.verilator_name.lower() == 'clk':
-                self.clock = Clock(sig)
+        for sig_name in self.io:
+            if sig_name.lower() == 'clock' or sig_name.lower() == 'clk':
+                self.clock = Clock(self.io[sig_name].signal)
                 break
         # if neither are found, look for names that start with clock or clk
         if self.clock is None:
-            for sig in self.io:
-                if sig.verilator_name.lower().startswith('clock') or sig.verilator_name.lower().startswith('clk'):
-                    self.clock = Clock(sig)
+            for sig_name in self.io:
+                if sig_name.startswith('clock') or sig_name.startswith('clk'):
+                    self.clock = Clock(self.io[sig_name].signal)
                     break
 
     def __del__(self):
@@ -560,7 +556,7 @@ class PyVerilator:
             io_dict[sig.short_name] = sig
             all_signals[sig.modular_name] = sig
         for sig_name, width in self.internal_signals:
-            sig = Output(self, sig_name, width)
+            sig = InternalSignal(self, sig_name, width)
             internals_dict[sig.modular_name] = sig
             all_signals[sig.modular_name] = sig
         self.io = Collection(io_dict)
@@ -747,65 +743,48 @@ class PyVerilator:
         new_zf = zf - 5
         self.gtkwave_tcl.eval('gtkwave::setZoomFactor %f' % (new_zf))
 
-    def send_signals_to_gtkwave(self, signals_to_add):
+    def send_to_gtkwave(self, objs):
+        """Generic function for sending things to GTKWave.
+
+        This works on Signals, Collections, Interfaces, and Rules"""
+        if isinstance(objs, list):
+            for obj in objs:
+                self.send_to_gtkwave(obj)
+        elif isinstance(objs, Collection):
+            for key in objs:
+                self.send_to_gtkwave(objs[key])
+        elif isinstance(objs, Signal):
+            self.send_signal_to_gtkwave(objs)
+        else:
+            objs.send_to_gtkwave()
+
+    def send_signal_to_gtkwave(self, sig):
         if not self.gtkwave_active:
             raise ValueError('send_signals_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
 
-        # signals_to_add are either Signal objects, gtkwave names, or verilator names
-        # they can be passed in as a single item or in an iterable container
-        if isinstance(signals_to_add, str) or isinstance(signals_to_add, Signal):
-            # only a single object is being added
-            signals_to_add = [signals_to_add]
-        if not isinstance(signals_to_add, list):
-            # convert iterable container to list
-            signals_to_add = list(signals_to_add)
+        if not isinstance(sig, Signal):
+            raise TypeError('send_signal_to_gtkwave() only works on Signal objects. Use send_to_gtkwave() for other items.')
 
-        gtkwave_signal_names = []
-        for sig in signals_to_add:
-            if isinstance(sig, Signal):
-                gtkwave_signal_names.append(sig.gtkwave_name)
-            elif isinstance(sig, str):
-                # assume if the signal name doesn't have a period in it, it is a verilator name
-                if '.' not in sig:
-                    sig = 'TOP.' + sig.replace('__DOT__','.')
-                gtkwave_signal_names.append(sig)
-            else:
-                raise TypeError("Can't add type \"%s\" to gtkwave" % str(type(sig)))
-
-        # to get all the signal names for debugging:
-        # signal_names = tclstring_to_flat_list(self.gtkwave_tcl.eval('''
-        # set nfacs [gtkwave::getNumFacs]
-        # set signal_names []
-        # for {set i 0} {$i < $nfacs} {incr i} {
-        #     lappend signal_names [gtkwave::getFacName $i]
-        # }
-        # puts "$signal_names"
-        # '''))
+        gtkwave_name = 'TOP.{}.'.format(self.module_name) + '.'.join(sig.modular_name)
+        if sig.width > 1:
+            gtkwave_name += '[%d:0]' % (sig.width-1)
 
         # find the signals
         num_found_signals = int(self.gtkwave_tcl.eval('''
         set nfacs [gtkwave::getNumFacs]
         set found_signals [list]
-        set target_signals {%s}
+        set target_sig {%s}
         for {set i 0} {$i < $nfacs} {incr i} {
             set facname [gtkwave::getFacName $i]
-            foreach target_sig $target_signals {
-                if {[string first [string tolower $target_sig] [string tolower $facname]] != -1} {
-
-                    lappend found_signals "$facname"
-                }
+            if {[string first [string tolower $target_sig] [string tolower $facname]] != -1} {
+                lappend found_signals "$facname"
             }
         }
         gtkwave::addSignalsFromList $found_signals
-        ''' % ' '.join(gtkwave_signal_names)))
+        ''' % gtkwave_name))
 
-        if num_found_signals < len(gtkwave_signal_names):
-            raise ValueError('send_signals_to_gtkwave was only able to send %d of %d signals' % (num_found_signals, len(gtkwave_signal_names)))
-
-    def send_signal_to_gtkwave(self, signal_name):
-        if not self.gtkwave_active:
-            raise ValueError('send_signal_to_gtkwave() requires GTKWave to be started using start_gtkwave()')
-        self.send_signals_to_gtkwave([signal_name])
+        if num_found_signals < 1:
+            raise ValueError('send_signal_to_gtkwave was not able to send ' + gtkwave_name)
 
     def stop_gtkwave(self):
         if not self.gtkwave_active:

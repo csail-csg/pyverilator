@@ -1,4 +1,10 @@
+import os
 import pyverilator
+
+# setup build directory and cd to it
+build_dir = os.path.join(os.path.dirname(__file__), 'build', os.path.basename(__file__))
+os.makedirs(build_dir, exist_ok = True)
+os.chdir(build_dir)
 
 test_verilog = '''
     module counter (
@@ -26,8 +32,8 @@ sim = pyverilator.PyVerilator.build('counter.v')
 sim.start_gtkwave()
 
 # add all the io and internal signals to gtkwave
-sim.send_signals_to_gtkwave(sim.io)
-sim.send_signals_to_gtkwave(sim.internals)
+sim.send_to_gtkwave(sim.io)
+sim.send_to_gtkwave(sim.internals)
 
 # set the rst input to 1
 sim.io.rst = 1

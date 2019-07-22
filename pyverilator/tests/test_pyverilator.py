@@ -408,13 +408,6 @@ class TestPyVerilator(unittest.TestCase):
             f.write(test_verilog)
         sim = pyverilator.PyVerilator.build('variable_name_test.v')
 
-        io_gtkwave_names = [io.gtkwave_name for io in sim.io]
-        for var in variable_names:
-            if var.startswith('\\'):
-                var = var[1:]
-            self.assertIn('TOP.{}.'.format(sim.module_name) + var, io_gtkwave_names)
-            self.assertIn('TOP.{}.'.format(sim.module_name) + var + '_out', io_gtkwave_names)
-
         for var in variable_names:
             if var.startswith('\\'):
                 var = var[1:]

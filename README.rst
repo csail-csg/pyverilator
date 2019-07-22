@@ -52,8 +52,9 @@ python.
     sim.send_signals_to_gtkwave(sim.io)
     sim.send_signals_to_gtkwave(sim.internals)
 
-    # set the rst input to 1
-    sim.io.rst = 1
+    # add all the io and internal signals to gtkwave
+    sim.send_to_gtkwave(sim.io)
+    sim.send_to_gtkwave(sim.internals)
 
     # tick the automatically detected clock
     sim.clock.tick()
@@ -68,7 +69,7 @@ python.
     # dictionary syntax returns a SignalValue object which inherits from int.
     # sim.io.out can be used just like an int in most cases, and it has extra
     # features like being able to add it to gtkwave with
-    # sim.io.out.add_to_gtkwave(). To just get the int value, you can call
+    # sim.io.out.send_to_gtkwave(). To just get the int value, you can call
     # sim.io.out.value
     print('sim.io.out = ' + str(curr_out))
 
