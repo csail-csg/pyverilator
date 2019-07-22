@@ -1,3 +1,3 @@
-from .pyverilator import PyVerilator, Collection, Signal, Output, InternalSignal, Input, Clock
+from .pyverilator import PyVerilator, Collection, Submodule, Signal, Output, InternalSignal, Input, Clock
 
 name = "PyVerilator"

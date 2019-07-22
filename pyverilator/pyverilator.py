@@ -75,8 +75,38 @@ class Collection:
        _item_dict_keys, __init__, and other __X__ functions) can not be accessed by attribute.
     """
 
+    @classmethod
+    def build_collection_recursive(cls, nested_dict, nested_class = None):
+        """Builds nested Collection from a nested dict.
+
+        The outer Collection is 'cls', all the inner collections are 'nested_class'
+        """
+        modified_dict = nested_dict.copy()
+        if nested_class is None:
+            nested_class = cls
+        for key in modified_dict:
+            if isinstance(modified_dict[key], dict):
+                modified_dict[key] = nested_class.build_collection_recursive(modified_dict[key])
+        return cls(modified_dict)
+
+    @classmethod
+    def build_nested_collection(cls, flat_tuple_dict, nested_class = None):
+        """Builds nested Collections from a dict with tuple keys.
+
+        The keys of the tuple corresponds to the hierarchical path of the value
+        """
+        nested_dict = {}
+        for hierarchy_path, value in flat_tuple_dict.items():
+            curr_item = nested_dict
+            for elem in hierarchy_path[:-1]:
+                if elem not in curr_item:
+                    curr_item[elem] = {}
+                curr_item = curr_item[elem]
+            curr_item[hierarchy_path[-1]] = value
+        return cls.build_collection_recursive(nested_dict, nested_class = nested_class)
+
     def __init__(self, items):
-        self._item_dict = items
+        self._item_dict = items.copy()
         self._item_dict_keys = list(items.keys())
         self._item_dict_keys.sort()
 
@@ -454,8 +484,7 @@ class PyVerilator:
         self._read_embedded_data()
         self._sim_init()
         # constructor helpers
-        self.io = self._construct_io_collection()
-        self.internals = self._construct_internal_signal_collection()
+        self._populate_signal_collections()
         # try to autodetect the clock
         self.clock = None
         # first look for an io with the name clock or clk (ignoring case)
@@ -509,37 +538,25 @@ class PyVerilator:
         json_string = ctypes.c_char_p.in_dll(self.lib, '_pyverilator_json_data').value.decode('ascii')
         self.json_data = json.loads(json_string)
 
-    def _construct_io_collection(self):
-        signals = {}
+    def _populate_signal_collections(self):
+        all_signals = {}
+        io_dict = {}
+        internals_dict = {}
         for sig_name, width in self.inputs:
             sig = Input(self, sig_name, width)
-            signals[sig.short_name] = sig
+            io_dict[sig.short_name] = sig
+            all_signals[sig.modular_name] = sig
         for sig_name, width in self.outputs:
             sig = Output(self, sig_name, width)
-            signals[sig.short_name] = sig
-        return Collection(signals)
-
-    def _construct_internal_signal_collection(self):
-        internal_signal_hierarchy = {}
-        for verilator_signal_name, width in self.internal_signals:
-            sig = InternalSignal(self, verilator_signal_name, width)
-            # module_name always starts with the top-module and ends with the short name
-            modular_path = sig.modular_name[1:-1]
-            curr_node = internal_signal_hierarchy
-            for module in modular_path:
-                if module not in curr_node:
-                    curr_node[module] = {}
-                curr_node = curr_node[module]
-            curr_node[sig.short_name] = sig
-        def construct_collection(curr_node, top_level = True):
-            for key in curr_node:
-                if isinstance(curr_node[key], dict):
-                    curr_node[key] = construct_collection(curr_node[key], False)
-            if top_level:
-                return Collection(curr_node)
-            else:
-                return Submodule(curr_node)
-        return construct_collection(internal_signal_hierarchy)
+            io_dict[sig.short_name] = sig
+            all_signals[sig.modular_name] = sig
+        for sig_name, width in self.internal_signals:
+            sig = Output(self, sig_name, width)
+            internals_dict[sig.modular_name[1:]] = sig
+            all_signals[sig.modular_name] = sig
+        self.io = Collection(io_dict)
+        self.internals = Collection.build_nested_collection(internals_dict, Submodule)
+        self.all_signals = all_signals
 
     def _read(self, port_name):
         port_width = None
