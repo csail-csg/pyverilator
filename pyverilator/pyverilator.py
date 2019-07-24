@@ -202,7 +202,7 @@ class Collection:
         truncated = num_items > 25
         if truncated:
             keys_to_show = [self._item_dict_keys[i] for i in range(10)]
-            keys_to_show = [self._item_dict_keys[i] for i in range(num_items-10, num_items)]
+            keys_to_show.extend([self._item_dict_keys[i] for i in range(num_items-10, num_items)])
         else:
             keys_to_show = [self._item_dict_keys[i] for i in range(num_items)]
         items_to_show = [self._item_dict[key] for key in keys_to_show]
