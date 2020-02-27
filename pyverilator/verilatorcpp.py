@@ -99,7 +99,14 @@ int flush_vcd_trace(VerilatedVcdC* tfp) {{
 int stop_vcd_trace(VerilatedVcdC* tfp) {{
     tfp->close();
     return 0;
-}}""".format(module_filename='V' + top_module)
+}}
+bool get_finished() {{
+    return Verilated::gotFinish();;
+}}
+void set_finished(bool b) {{
+    Verilated::gotFinish(b);;
+}}
+""".format(module_filename='V' + top_module)
     get_functions = "\n".join(map(lambda port: (
         "uint32_t get_{portname}({module_filename}* top, int word)"
         "{{ return top->{portname}[word];}}" if port[1] > 64 else (

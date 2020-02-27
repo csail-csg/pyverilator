@@ -661,6 +661,14 @@ class PyVerilator:
                 return True
         return False
 
+    @property
+    def finished(self):
+        return self.lib.get_finished()
+
+    @finished.setter
+    def finished(self, b):
+        return self.lib.set_finished(b)
+
     def eval(self):
         fn = self.lib.eval
         fn.argtypes = [ctypes.c_void_p]
