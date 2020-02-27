@@ -5,6 +5,7 @@ import subprocess
 import json
 import re
 import warnings
+import sys
 from keyword import iskeyword
 import pyverilator.verilatorcpp as template_cpp
 import tclwrapper
@@ -336,6 +337,14 @@ class Clock(Input):
         self.write(0)
         self.write(1)
 
+def call_process(args, quiet=False, **kwargs):
+    if quiet:
+        kwargs["stderr"] = kwargs["stdout"] = subprocess.PIPE
+        kwargs["check"] = True
+        subprocess.run(args, **kwargs)
+    else:
+        subprocess.check_call(args)
+
 class PyVerilator:
     """Python wrapper for verilator model.
 
@@ -361,7 +370,8 @@ class PyVerilator:
     default_vcd_filename = 'gtkwave.vcd'
 
     @classmethod
-    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir', json_data = None, gen_only = False):
+    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
+              json_data = None, gen_only = False, quiet=False):
         """ Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -378,6 +388,10 @@ class PyVerilator:
         For example a model coming from bluespec will carry the list of rules of the model in this payload.
 
         gen_only stops the process before compiling the cpp into object.
+
+        ``quiet`` hides the output of Verilator and its Makefiles while generating and compiling the C++ model.
+
+        If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
@@ -411,7 +425,7 @@ class PyVerilator:
                             top_verilog_file,
                             '--exe',
                             verilator_cpp_wrapper_path]
-        subprocess.call(verilator_args)
+        call_process(verilator_args)
 
         # get inputs, outputs, and internal signals by parsing the generated verilator output
         inputs = []
@@ -464,7 +478,7 @@ class PyVerilator:
         # call make to build the pyverilator shared object
         make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name, 'CFLAGS=-fPIC -shared',
                      'LDFLAGS=-fPIC -shared']
-        subprocess.call(make_args)
+        call_process(make_args, quiet=quiet)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
         return cls(so_file)
 
