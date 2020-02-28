@@ -418,8 +418,8 @@ class PyVerilator:
         # tracing (--trace) is required in order to see internal signals
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
                          + verilog_path_args \
-                         + ['--CFLAGS',
-                           '-fPIC --std=c++11',
+                         + ['-CFLAGS',
+                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
                             '--trace',
                             '--cc',
                             top_verilog_file,
@@ -476,7 +476,7 @@ class PyVerilator:
             return None
 
         # call make to build the pyverilator shared object
-        make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name, 'CFLAGS=-fPIC -shared',
+        make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name,
                      'LDFLAGS=-fPIC -shared']
         call_process(make_args, quiet=quiet)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
@@ -496,6 +496,7 @@ class PyVerilator:
         self.vcd_reader = None
         self.gtkwave_active = False
         self.lib = ctypes.CDLL(so_file)
+        self._lib_vl_finish_callback = None
         construct = self.lib.construct
         construct.restype = ctypes.c_void_p
         self.model = construct()
@@ -682,6 +683,12 @@ class PyVerilator:
     @finished.setter
     def finished(self, b):
         return self.lib.set_finished(b)
+
+    _vl_finish_callback = None # Global reference to prevent GC
+    def set_vl_finish_callback(self, cb):
+        ctype_cb = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
+        PyVerilator._vl_finish_callback = ctype_cb(cb) if cb else None
+        return self.lib.set_vl_finish_callback(self._lib_vl_finish_callback)
 
     def eval(self):
         fn = self.lib.eval
