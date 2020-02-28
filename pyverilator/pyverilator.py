@@ -684,10 +684,9 @@ class PyVerilator:
     def finished(self, b):
         return self.lib.set_finished(b)
 
-    _vl_finish_callback = None # Global reference to prevent GC
     def set_vl_finish_callback(self, cb):
         ctype_cb = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
-        PyVerilator._vl_finish_callback = ctype_cb(cb) if cb else None
+        self._lib_vl_finish_callback = ctype_cb(lambda *args: cb(self, *args)) if cb else None
         return self.lib.set_vl_finish_callback(self._lib_vl_finish_callback)
 
     def eval(self):
