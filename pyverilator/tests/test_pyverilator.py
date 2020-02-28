@@ -390,6 +390,307 @@ class TestPyVerilator(unittest.TestCase):
         self.assertEqual(sim.internals.out_reg,         9)
         self.assertEqual(sim.io.out,                    9)
 
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_finish(self):
+        finish_tester_verilog = '''
+            module finish_tester(
+                    clk,
+                    rst,
+                    do_finish);
+                input clk;
+                input rst;
+                input do_finish;
+
+                always @(posedge clk) begin
+                    if ((rst == 0) && (do_finish == 1)) begin
+                        $finish;
+                    end
+                end
+            endmodule'''
+        with open('finish_tester.v', 'w') as f:
+            f.write(finish_tester_verilog)
+
+        sim = pyverilator.PyVerilator.build('finish_tester.v')
+
+        self.assertEqual(sim.finished, False)
+        sim.finished = True
+        self.assertEqual(sim.finished, True)
+        sim.finished = False
+        self.assertEqual(sim.finished, False)
+
+        sim.io.do_finish = 0
+        sim.io.rst = 1
+        sim.io.clk = 0
+        sim.io.clk = 1
+        sim.io.rst = 0
+
+        self.assertEqual(sim.finished, False)
+
+        sim.io.do_finish = 1
+        sim.io.clk = 0
+        sim.io.clk = 1
+
+        self.assertEqual(sim.finished, True)
+
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_user_finish(self):
+        finish_tester_verilog = '''
+            module user_finish_tester(
+                    clk,
+                    rst,
+                    do_finish);
+                input clk;
+                input rst;
+                input do_finish;
+
+                always @(posedge clk) begin
+                    if ((rst == 0) && (do_finish == 1)) begin
+                        $finish;
+                    end
+                end
+            endmodule'''
+        with open('user_finish_tester.v', 'w') as f:
+            f.write(finish_tester_verilog)
+
+        sim = pyverilator.PyVerilator.build('user_finish_tester.v')
+        user_finish_called = False
+        def finish_callback(sim, *args):
+            nonlocal user_finish_called
+            user_finish_called = True
+            sim.finished = True
+
+        sim.set_vl_finish_callback(finish_callback)
+
+        self.assertEqual(sim.finished, False)
+        self.assertEqual(user_finish_called, False)
+        sim.finished = True
+        self.assertEqual(sim.finished, True)
+        self.assertEqual(user_finish_called, False)
+        sim.finished = False
+        self.assertEqual(sim.finished, False)
+        self.assertEqual(user_finish_called, False)
+
+        sim.io.do_finish = 0
+        sim.io.rst = 1
+        sim.io.clk = 0
+        sim.io.clk = 1
+        sim.io.rst = 0
+
+        self.assertEqual(sim.finished, False)
+        self.assertEqual(user_finish_called, False)
+
+        sim.io.do_finish = 1
+        sim.io.clk = 0
+        sim.io.clk = 1
+
+        self.assertEqual(sim.finished, True)
+        self.assertEqual(user_finish_called, True)
+
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_finish_2_different_files(self):
+        finish_tester_verilog = '''
+            module finish_tester(
+                    clk,
+                    rst,
+                    do_finish);
+                input clk;
+                input rst;
+                input do_finish;
+
+                always @(posedge clk) begin
+                    if ((rst == 0) && (do_finish == 1)) begin
+                        $finish;
+                    end
+                end
+            endmodule'''
+        with open('finish_tester_1.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('finish_tester_2.v', 'w') as f:
+            f.write(finish_tester_verilog)
+
+        sim_1 = pyverilator.PyVerilator.build('finish_tester_1.v')
+        sim_2 = pyverilator.PyVerilator.build('finish_tester_2.v')
+
+        def start_sim(sim):
+            sim.io.do_finish = 0
+            sim.io.rst = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+            sim.io.rst = 0
+
+        def finish_sim(sim):
+            sim.io.do_finish = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+
+        start_sim(sim_1)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+
+        start_sim(sim_2)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+
+        finish_sim(sim_2)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, True)
+
+        finish_sim(sim_1)
+
+        self.assertEqual(sim_1.finished, True)
+        self.assertEqual(sim_2.finished, True)
+
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_user_finish_2_different_files(self):
+        finish_tester_verilog = '''
+            module user_finish_tester(
+                    clk,
+                    rst,
+                    do_finish);
+                input clk;
+                input rst;
+                input do_finish;
+
+                always @(posedge clk) begin
+                    if ((rst == 0) && (do_finish == 1)) begin
+                        $finish;
+                    end
+                end
+            endmodule'''
+        with open('user_finish_tester_1.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('user_finish_tester_2.v', 'w') as f:
+            f.write(finish_tester_verilog)
+
+        sim_1 = pyverilator.PyVerilator.build('user_finish_tester_1.v')
+        sim_2 = pyverilator.PyVerilator.build('user_finish_tester_2.v')
+
+        user_finish_called_1 = False
+        def finish_callback_1(sim, *args):
+            nonlocal user_finish_called_1
+            user_finish_called_1 = True
+            sim.finished = True
+        sim_1.set_vl_finish_callback(finish_callback_1)
+
+        user_finish_called_2 = False
+        def finish_callback_2(sim, *args):
+            nonlocal user_finish_called_2
+            user_finish_called_2 = True
+            sim.finished = True
+        sim_2.set_vl_finish_callback(finish_callback_2)
+
+        def start_sim(sim):
+            sim.io.do_finish = 0
+            sim.io.rst = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+            sim.io.rst = 0
+
+        def finish_sim(sim):
+            sim.io.do_finish = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+        self.assertEqual(user_finish_called_1, False)
+        self.assertEqual(user_finish_called_2, False)
+
+        start_sim(sim_1)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+        self.assertEqual(user_finish_called_1, False)
+        self.assertEqual(user_finish_called_2, False)
+
+        start_sim(sim_2)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+        self.assertEqual(user_finish_called_1, False)
+        self.assertEqual(user_finish_called_2, False)
+
+        finish_sim(sim_2)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, True)
+        self.assertEqual(user_finish_called_1, False)
+        self.assertEqual(user_finish_called_2, True)
+
+        finish_sim(sim_1)
+
+        self.assertEqual(sim_1.finished, True)
+        self.assertEqual(sim_2.finished, True)
+        self.assertEqual(user_finish_called_1, True)
+        self.assertEqual(user_finish_called_2, True)
+
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_finish_2_same_files(self):
+        # This is known to fail at the moment because the same shared object is shared between
+        # sim_1 and sim_2. To fix this, we whould have to find a way to make a unique shared
+        # object for each sim.
+        finish_tester_verilog = '''
+            module finish_tester(
+                    clk,
+                    rst,
+                    do_finish);
+                input clk;
+                input rst;
+                input do_finish;
+
+                always @(posedge clk) begin
+                    if ((rst == 0) && (do_finish == 1)) begin
+                        $finish;
+                    end
+                end
+            endmodule'''
+        with open('finish_tester_same.v', 'w') as f:
+            f.write(finish_tester_verilog)
+
+        sim_1 = pyverilator.PyVerilator.build('finish_tester_same.v')
+        sim_2 = pyverilator.PyVerilator.build('finish_tester_same.v')
+
+        def start_sim(sim):
+            sim.io.do_finish = 0
+            sim.io.rst = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+            sim.io.rst = 0
+
+        def finish_sim(sim):
+            sim.io.do_finish = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+
+        start_sim(sim_1)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+
+        start_sim(sim_2)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, False)
+
+        finish_sim(sim_2)
+
+        self.assertEqual(sim_1.finished, False)
+        self.assertEqual(sim_2.finished, True)
+
+        finish_sim(sim_1)
+
+        self.assertEqual(sim_1.finished, True)
+        self.assertEqual(sim_2.finished, True)
+
     @unittest.skipIf(shutil.which('verilator') is None or shutil.which('gtkwave') is None, "test requires verilator and gtkwave to be in the path")
     def test_pyverilator_variable_names(self):
         # the last few names have a \ before them because they are required
