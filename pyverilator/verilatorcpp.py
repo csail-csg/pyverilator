@@ -42,6 +42,10 @@ const char* _pyverilator_json_data = {json_data};
 // this is required by verilator for verilog designs using $time
 // main_time is incremented in eval
 double main_time = 0;
+
+// What to call when $finish is called
+typedef void (*vl_finish_callback)(const char* filename, int line, const char* hier);
+vl_finish_callback vl_user_finish = NULL;
     """.format(
         top_module = top_module,
         nb_inputs=len(inputs),
@@ -56,10 +60,23 @@ double main_time = 0;
         json_data=json_data if json_data else "null")
     return s
 
-
 def function_definitions_cpp(top_module, inputs, outputs, internal_signals, json_data):
     constant_part = """double sc_time_stamp() {{
 return main_time;
+}}
+void vl_finish (const char* filename, int linenum, const char* hier) VL_MT_UNSAFE {{
+    if (vl_user_finish) {{
+       (*vl_user_finish)(filename, linenum, hier);
+    }} else {{
+        // Default implementation
+        VL_PRINTF("- %s:%d: Verilog $finish\\n", filename, linenum);  // Not VL_PRINTF_MT, already on main thread
+        if (Verilated::gotFinish()) {{
+            VL_PRINTF("- %s:%d: Second verilog $finish, exiting\\n", filename, linenum);  // Not VL_PRINTF_MT, already on main thread
+            Verilated::flushCall();
+            exit(0);
+        }}
+        Verilated::gotFinish(true);
+    }}
 }}
 // function definitions
 // helper functions for basic verilator tasks
@@ -101,10 +118,13 @@ int stop_vcd_trace(VerilatedVcdC* tfp) {{
     return 0;
 }}
 bool get_finished() {{
-    return Verilated::gotFinish();;
+    return Verilated::gotFinish();
 }}
 void set_finished(bool b) {{
-    Verilated::gotFinish(b);;
+    Verilated::gotFinish(b);
+}}
+void set_vl_finish_callback(vl_finish_callback callback) {{
+    vl_user_finish = callback;
 }}
 """.format(module_filename='V' + top_module)
     get_functions = "\n".join(map(lambda port: (

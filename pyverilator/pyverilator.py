@@ -5,6 +5,7 @@ import subprocess
 import json
 import re
 import warnings
+import sys
 from keyword import iskeyword
 import pyverilator.verilatorcpp as template_cpp
 import tclwrapper
@@ -336,6 +337,14 @@ class Clock(Input):
         self.write(0)
         self.write(1)
 
+def call_process(args, quiet=False, **kwargs):
+    if quiet:
+        kwargs["stderr"] = kwargs["stdout"] = subprocess.PIPE
+        kwargs["check"] = True
+        subprocess.run(args, **kwargs)
+    else:
+        subprocess.check_call(args)
+
 class PyVerilator:
     """Python wrapper for verilator model.
 
@@ -361,7 +370,8 @@ class PyVerilator:
     default_vcd_filename = 'gtkwave.vcd'
 
     @classmethod
-    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir', json_data = None, gen_only = False):
+    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
+              json_data = None, gen_only = False, quiet=False):
         """ Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -378,6 +388,10 @@ class PyVerilator:
         For example a model coming from bluespec will carry the list of rules of the model in this payload.
 
         gen_only stops the process before compiling the cpp into object.
+
+        ``quiet`` hides the output of Verilator and its Makefiles while generating and compiling the C++ model.
+
+        If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
@@ -404,14 +418,14 @@ class PyVerilator:
         # tracing (--trace) is required in order to see internal signals
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
                          + verilog_path_args \
-                         + ['--CFLAGS',
-                           '-fPIC --std=c++11',
+                         + ['-CFLAGS',
+                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
                             '--trace',
                             '--cc',
                             top_verilog_file,
                             '--exe',
                             verilator_cpp_wrapper_path]
-        subprocess.call(verilator_args)
+        call_process(verilator_args)
 
         # get inputs, outputs, and internal signals by parsing the generated verilator output
         inputs = []
@@ -462,9 +476,9 @@ class PyVerilator:
             return None
 
         # call make to build the pyverilator shared object
-        make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name, 'CFLAGS=-fPIC -shared',
+        make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name,
                      'LDFLAGS=-fPIC -shared']
-        subprocess.call(make_args)
+        call_process(make_args, quiet=quiet)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
         return cls(so_file)
 
@@ -482,6 +496,7 @@ class PyVerilator:
         self.vcd_reader = None
         self.gtkwave_active = False
         self.lib = ctypes.CDLL(so_file)
+        self._lib_vl_finish_callback = None
         construct = self.lib.construct
         construct.restype = ctypes.c_void_p
         self.model = construct()
@@ -668,6 +683,12 @@ class PyVerilator:
     @finished.setter
     def finished(self, b):
         return self.lib.set_finished(b)
+
+    _vl_finish_callback = None # Global reference to prevent GC
+    def set_vl_finish_callback(self, cb):
+        ctype_cb = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)
+        PyVerilator._vl_finish_callback = ctype_cb(cb) if cb else None
+        return self.lib.set_vl_finish_callback(self._lib_vl_finish_callback)
 
     def eval(self):
         fn = self.lib.eval
