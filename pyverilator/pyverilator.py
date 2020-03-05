@@ -337,11 +337,10 @@ class Clock(Input):
         self.write(0)
         self.write(1)
 
-def call_process(args, quiet=False, **kwargs):
+def call_process(args, quiet=False):
     if quiet:
-        kwargs["stderr"] = kwargs["stdout"] = subprocess.PIPE
-        kwargs["check"] = True
-        subprocess.run(args, **kwargs)
+        subprocess.run(args, stderr=subprocess.PIPE,
+                       stdout=subprocess.PIPE, check=True)
     else:
         subprocess.check_call(args)
 
