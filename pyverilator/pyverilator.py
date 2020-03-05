@@ -371,7 +371,8 @@ class PyVerilator:
 
     @classmethod
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
-              json_data = None, gen_only = False, quiet=False):
+              json_data = None, gen_only = False, quiet=False,
+              command_args=()):
         """ Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -390,6 +391,8 @@ class PyVerilator:
         gen_only stops the process before compiling the cpp into object.
 
         ``quiet`` hides the output of Verilator and its Makefiles while generating and compiling the C++ model.
+
+        ``command_args`` is passed to Verilator as its argv.  It can be used to pass arguments to the $test$plusargs and $value$plusargs system tasks.
 
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
@@ -480,9 +483,9 @@ class PyVerilator:
                      'LDFLAGS=-fPIC -shared']
         call_process(make_args, quiet=quiet)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
-        return cls(so_file)
+        return cls(so_file, command_args=command_args)
 
-    def __init__(self, so_file, auto_eval=True):
+    def __init__(self, so_file, auto_eval=True, command_args=()):
         # initialize lib and model first so if __init__ fails, __del__ will
         # not fail.
         self.lib = None
@@ -497,6 +500,7 @@ class PyVerilator:
         self.gtkwave_active = False
         self.lib = ctypes.CDLL(so_file)
         self._lib_vl_finish_callback = None
+        self.set_command_args(command_args)
         construct = self.lib.construct
         construct.restype = ctypes.c_void_p
         self.model = construct()
@@ -821,3 +825,17 @@ class PyVerilator:
         self.gtkwave_active = False
         if self.vcd_filename == PyVerilator.default_vcd_filename:
             self.stop_vcd_trace()
+
+    def set_command_args(self, args):
+        charp = ctypes.POINTER(ctypes.c_char)
+        charpp = ctypes.POINTER(charp)
+
+        self.lib.set_command_args.restype = ctypes.c_void_p
+        self.lib.set_command_args.argtypes = (ctypes.c_int, charpp)
+
+        argc = len(args)
+        argv = (charp * (argc + 1))()
+        for idx, arg in enumerate(args):
+            argv[idx] = ctypes.create_string_buffer(os.fsencode(arg))
+
+        return self.lib.set_command_args(argc, argv)
