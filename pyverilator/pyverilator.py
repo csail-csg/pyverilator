@@ -371,7 +371,7 @@ class PyVerilator:
     @classmethod
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
-              command_args=(), verilator_defines=()):
+              command_args=(), verilog_defines=()):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -393,10 +393,16 @@ class PyVerilator:
 
         ``command_args`` is passed to Verilator as its argv.  It can be used to pass arguments to the $test$plusargs and $value$plusargs system tasks.
 
-        ``verilator_defines`` is a list of preprocessor defines; each entry should be a name-value pair.
+        ``verilog_defines`` is a list of preprocessor defines; each entry should be a string, and defined macros with value should be specified as "MACRO=value".
 
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
+        # some simple type checking to look for easy errors to make that can be hard to debug
+        if isinstance(verilog_defines, str):
+            raise TypeError('verilog_defines expects a list of strings')
+        if isinstance(command_args, str):
+            raise TypeError('command_args expects a list of strings')
+
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
         verilog_module_name, extension = os.path.splitext(top_verilog_file_base)
@@ -419,11 +425,11 @@ class PyVerilator:
         which_verilator = shutil.which('verilator')
         if which_verilator is None:
             raise Exception("'verilator' executable not found")
-        verilator_defines = ["+define+{}={}".format(k, v) for (k, v) in verilator_defines]
+        verilog_defines = ["+define+" + x for x in verilog_defines]
         # tracing (--trace) is required in order to see internal signals
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
                          + verilog_path_args \
-                         + verilator_defines \
+                         + verilog_defines \
                          + ['-CFLAGS',
                            '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
                             '--trace',
