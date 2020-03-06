@@ -6,6 +6,23 @@ def header_cpp(top_module):
     """.format(module_filename='V' + top_module)
     return s
 
+dlmopen_support_cpp = """
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <dlfcn.h>
+extern "C" {
+#ifdef LM_ID_NEWLM
+int supports_dlmopen() { return 1; }
+size_t get_sizeof_lmid_t() { return sizeof(Lmid_t); }
+Lmid_t get_lm_id_newlm() { return LM_ID_NEWLM; }
+#else
+int supports_dlmopen() { return 0; }
+size_t get_sizeof_lmid_t() { return sizeof(int); }
+int get_lm_id_newlm() { return 0; }
+#endif
+}
+"""
 
 def var_declaration_cpp(top_module, inputs, outputs, internal_signals, json_data):
     s = """// pyverilator defined values
@@ -151,5 +168,6 @@ void set_command_args(int argc, char** argv) {{
 
 def template_cpp(top_module, inputs, outputs, internal_signals, json_data):
     return "\n".join([header_cpp(top_module),
+                      dlmopen_support_cpp,
                       var_declaration_cpp(top_module, inputs, outputs, internal_signals, json_data),
                       function_definitions_cpp(top_module, inputs, outputs, internal_signals, json_data)])

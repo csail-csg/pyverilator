@@ -507,7 +507,42 @@ class PyVerilator:
         self.curr_time = 0
         self.vcd_reader = None
         self.gtkwave_active = False
-        self.lib = ctypes.CDLL(so_file)
+        # check to see if shared file is already loaded
+        baselib = ctypes.CDLL('')
+        baselib.dlopen.argtypes = [ctypes.c_char_p, ctypes.c_int]
+        baselib.dlopen.restype = ctypes.c_void_p
+        handle = baselib.dlopen(so_file.encode('ascii'), os.RTLD_NOW | os.RTLD_NOLOAD)
+        print('handle = ' + str(handle))
+        if handle is None:
+            # this shared object has not been loaded yet, so just load it normally
+            self.lib = ctypes.CDLL(so_file)
+        else:
+            # This shared object has already been loaded, so load it using dlmopen (if possible)
+            # Get the already loaded library as orig_lib
+            orig_lib = ctypes.CDLL(so_file, handle=handle)
+            if not orig_lib.supports_dlmopen():
+                raise Exception('"%s" already loaded, unable to load a second copy' % so_file)
+            orig_lib.get_sizeof_lmid_t.restype = ctypes.c_size_t
+            sizeof_lmid_t = orig_lib.get_sizeof_lmid_t()
+            if sizeof_lmid_t == 1:
+                lmid_t = ctypes.c_uint8
+            elif sizeof_lmid_t == 2:
+                lmid_t = ctypes.c_uint16
+            elif sizeof_lmid_t == 4:
+                lmid_t = ctypes.c_uint32
+            elif sizeof_lmid_t == 8:
+                lmid_t = ctypes.c_uint64
+            else:
+                raise TypeError('Unsupported size of type for lmid_t')
+            orig_lib.get_lm_id_newlm.restype = lmid_t
+            lmid = orig_lib.get_lm_id_newlm()
+            flags = os.RTLD_NOW | os.RTLD_LOCAL
+            baselib.dlmopen.argtypes = [lmid_t, ctypes.c_char_p, ctypes.c_int]
+            baselib.dlmopen.restype = ctypes.c_void_p
+            handle=baselib.dlmopen(lmid, so_file.encode('ascii'), flags)
+            if handle == 0:
+                raise Exception('handle == 0')
+            self.lib = ctypes.CDLL(so_file, handle=handle)
         self._lib_vl_finish_callback = None
         self.set_command_args(command_args)
         construct = self.lib.construct
