@@ -82,7 +82,6 @@ void vl_finish (const char* filename, int linenum, const char* hier) VL_MT_UNSAF
 // helper functions for basic verilator tasks
 extern "C" {{ //Open an extern C closed in the footer
 {module_filename}* construct() {{
-    Verilated::commandArgs(0, (const char**) nullptr);
     Verilated::traceEverOn(true);
     {module_filename}* top = new {module_filename}();
     return top;
@@ -125,6 +124,9 @@ void set_finished(bool b) {{
 }}
 void set_vl_finish_callback(vl_finish_callback callback) {{
     vl_user_finish = callback;
+}}
+void set_command_args(int argc, char** argv) {{
+    Verilated::commandArgs(argc, argv);
 }}
 """.format(module_filename='V' + top_module)
     get_functions = "\n".join(map(lambda port: (
