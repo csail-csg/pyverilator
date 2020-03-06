@@ -691,6 +691,125 @@ class TestPyVerilator(unittest.TestCase):
         self.assertEqual(sim_1.finished, True)
         self.assertEqual(sim_2.finished, True)
 
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_command_args(self):
+        finish_tester_verilog = '''
+            module command_args_tester(
+                    rst,
+                    clk,
+                    counter);
+                input clk;
+                input rst;
+                output reg [7:0] counter;
+
+                integer step;
+
+                always @(posedge clk) begin
+                    if (rst == 1) begin
+                        counter <= 0;
+                    end else begin
+                        if ($test$plusargs("plusone")) begin
+                            counter <= counter + 1;
+                        end else if ($value$plusargs("step=%d", step)) begin
+                            counter <= counter + step;
+                        end
+                    end
+                end
+            endmodule'''
+        with open('command_args_tester.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('command_args_tester_plus_one.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('command_args_tester_step_two.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('command_args_tester_step_three.v', 'w') as f:
+            f.write(finish_tester_verilog)
+
+        def test_sim(sim, expected_step):
+            sim.io.rst = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+            sim.io.rst = 0
+            self.assertEqual(sim.io.counter, 0)
+            sim.io.clk = 0
+            sim.io.clk = 1
+            self.assertEqual(sim.io.counter, expected_step)
+            sim.io.clk = 0
+            sim.io.clk = 1
+            self.assertEqual(sim.io.counter, 2 * expected_step)
+
+        sim = pyverilator.PyVerilator.build('command_args_tester.v')
+        test_sim(sim, 0)
+
+        sim = pyverilator.PyVerilator.build('command_args_tester_plus_one.v', command_args=('+plusone',))
+        test_sim(sim, 1)
+
+        sim = pyverilator.PyVerilator.build('command_args_tester_step_two.v', command_args=('+step=2',))
+        test_sim(sim, 2)
+
+        sim = pyverilator.PyVerilator.build('command_args_tester_step_three.v', command_args=('+step=3',))
+        test_sim(sim, 3)
+
+    @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
+    def test_pyverilator_verilog_defines(self):
+        finish_tester_verilog = '''
+            module verilog_defines_tester(
+                    rst,
+                    clk,
+                    counter);
+                input clk;
+                input rst;
+                output reg [7:0] counter;
+
+                integer step;
+
+                always @(posedge clk) begin
+                    if (rst == 1) begin
+                        counter <= 0;
+                    end else begin
+`ifdef PLUSONE
+                        counter <= counter + 1;
+`endif
+`ifdef STEP
+                        counter <= counter + `STEP;
+`endif
+                    end
+                end
+            endmodule'''
+        with open('verilog_defines_tester.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('verilog_defines_tester_plus_one.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('verilog_defines_tester_step_two.v', 'w') as f:
+            f.write(finish_tester_verilog)
+        with open('verilog_defines_tester_step_three.v', 'w') as f:
+            f.write(finish_tester_verilog)
+
+        def test_sim(sim, expected_step):
+            sim.io.rst = 1
+            sim.io.clk = 0
+            sim.io.clk = 1
+            sim.io.rst = 0
+            self.assertEqual(sim.io.counter, 0)
+            sim.io.clk = 0
+            sim.io.clk = 1
+            self.assertEqual(sim.io.counter, expected_step)
+            sim.io.clk = 0
+            sim.io.clk = 1
+            self.assertEqual(sim.io.counter, 2 * expected_step)
+
+        sim = pyverilator.PyVerilator.build('verilog_defines_tester.v')
+        test_sim(sim, 0)
+
+        sim = pyverilator.PyVerilator.build('verilog_defines_tester_plus_one.v', verilog_defines=('PLUSONE',))
+        test_sim(sim, 1)
+
+        sim = pyverilator.PyVerilator.build('verilog_defines_tester_step_two.v', verilog_defines=('STEP=2',))
+        test_sim(sim, 2)
+
+        sim = pyverilator.PyVerilator.build('verilog_defines_tester_step_three.v', verilog_defines=('STEP=3',))
+        test_sim(sim, 3)
+
     @unittest.skipIf(shutil.which('verilator') is None or shutil.which('gtkwave') is None, "test requires verilator and gtkwave to be in the path")
     def test_pyverilator_variable_names(self):
         # the last few names have a \ before them because they are required
