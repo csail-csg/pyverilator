@@ -371,7 +371,8 @@ class PyVerilator:
     @classmethod
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
-              command_args=(), verilog_defines=()):
+              command_args=(), verilog_defines=(),
+              params={}, verilator_args=(), extra_cflags=""):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -394,6 +395,12 @@ class PyVerilator:
         ``command_args`` is passed to Verilator as its argv.  It can be used to pass arguments to the $test$plusargs and $value$plusargs system tasks.
 
         ``verilog_defines`` is a list of preprocessor defines; each entry should be a string, and defined macros with value should be specified as "MACRO=value".
+
+        ``params`` is a dictionary of parameter-overrides for the top-level module; each key should be a string and values can be an integer or a string.
+
+        ``verilator_args`` is a list of extra arguments to pass to verilator
+
+        ``extra_cflags`` is a string of extra args to set as CFLAGS in verilator. These will be used to compile the verilated C++
 
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
@@ -419,6 +426,15 @@ class PyVerilator:
         for verilog_dir in verilog_path:
             verilog_path_args += ['-y', verilog_dir]
 
+        # Convert params into command-line flags
+        param_args = []
+        for param, value in params.items():
+        # Strings must be quoted
+            if isinstance(value, str):
+                value = "\"{}\"".format(value)
+
+        param_args.append("-G{}={}".format(param, value))
+
         # Verilator is a perl program that is run as an executable
         # Old versions of Verilator are interpreted as a perl script by the shell,
         # while more recent versions are interpreted as a bash script that calls perl on itself
@@ -430,8 +446,10 @@ class PyVerilator:
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
                          + verilog_path_args \
                          + verilog_defines \
+                         + param_args \
+                         + verilator_args \
                          + ['-CFLAGS',
-                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
+                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH ' + extra_cflags,
                             '--trace',
                             '--cc',
                             top_verilog_file,
