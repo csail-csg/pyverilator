@@ -433,7 +433,7 @@ class PyVerilator:
             if isinstance(value, str):
                 value = "\"{}\"".format(value)
 
-        param_args.append("-G{}={}".format(param, value))
+            param_args.append("-G{}={}".format(param, value))
 
         # Verilator is a perl program that is run as an executable
         # Old versions of Verilator are interpreted as a perl script by the shell,
