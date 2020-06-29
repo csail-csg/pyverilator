@@ -372,7 +372,7 @@ class PyVerilator:
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
               command_args=(), verilog_defines=(),
-              params={}, verilator_args=(), extra_cflags=""):
+              params={}, verilator_args=(), extra_cflags="", verilog_module_name=None):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -412,7 +412,12 @@ class PyVerilator:
 
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
-        verilog_module_name, extension = os.path.splitext(top_verilog_file_base)
+
+        if verilog_module_name is None:
+            verilog_module_name, extension = os.path.splitext(top_verilog_file_base)
+        else:
+            _, extension = os.path.splitext(top_verilog_file_base)
+
         if extension not in ['.v', '.sv']:
             raise ValueError('PyVerilator() expects top_verilog_file to be a verilog file ending in .v or .sv')
 
