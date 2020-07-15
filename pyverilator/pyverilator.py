@@ -371,7 +371,8 @@ class PyVerilator:
     @classmethod
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
-              command_args=(), verilog_defines=()):
+              command_args=(), verilog_defines=(),
+              params={}, verilator_args=(), extra_cflags="", verilog_module_name=None):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -395,6 +396,12 @@ class PyVerilator:
 
         ``verilog_defines`` is a list of preprocessor defines; each entry should be a string, and defined macros with value should be specified as "MACRO=value".
 
+        ``params`` is a dictionary of parameter-overrides for the top-level module; each key should be a string and values can be an integer or a string.
+
+        ``verilator_args`` is a list of extra arguments to pass to verilator
+
+        ``extra_cflags`` is a string of extra args to set as CFLAGS in verilator. These will be used to compile the verilated C++
+
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
         # some simple type checking to look for easy errors to make that can be hard to debug
@@ -405,9 +412,14 @@ class PyVerilator:
 
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
-        verilog_module_name, extension = os.path.splitext(top_verilog_file_base)
-        if extension != '.v':
-            raise ValueError('PyVerilator() expects top_verilog_file to be a verilog file ending in .v')
+
+        if verilog_module_name is None:
+            verilog_module_name, extension = os.path.splitext(top_verilog_file_base)
+        else:
+            _, extension = os.path.splitext(top_verilog_file_base)
+
+        if extension not in ['.v', '.sv']:
+            raise ValueError('PyVerilator() expects top_verilog_file to be a verilog file ending in .v or .sv')
 
         # prepare the path for the C++ wrapper file
         if not os.path.exists(build_dir):
@@ -418,6 +430,15 @@ class PyVerilator:
         verilog_path_args = []
         for verilog_dir in verilog_path:
             verilog_path_args += ['-y', verilog_dir]
+
+        # Convert params into command-line flags
+        param_args = []
+        for param, value in params.items():
+        # Strings must be quoted
+            if isinstance(value, str):
+                value = "\"{}\"".format(value)
+
+            param_args.append("-G{}={}".format(param, value))
 
         # Verilator is a perl program that is run as an executable
         # Old versions of Verilator are interpreted as a perl script by the shell,
@@ -430,8 +451,10 @@ class PyVerilator:
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
                          + verilog_path_args \
                          + verilog_defines \
+                         + param_args \
+                         + verilator_args \
                          + ['-CFLAGS',
-                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
+                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH ' + extra_cflags,
                             '--trace',
                             '--cc',
                             top_verilog_file,
