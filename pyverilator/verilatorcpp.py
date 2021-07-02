@@ -72,7 +72,7 @@ void vl_finish (const char* filename, int linenum, const char* hier) VL_MT_UNSAF
         VL_PRINTF("- %s:%d: Verilog $finish\\n", filename, linenum);  // Not VL_PRINTF_MT, already on main thread
         if (Verilated::gotFinish()) {{
             VL_PRINTF("- %s:%d: Second verilog $finish, exiting\\n", filename, linenum);  // Not VL_PRINTF_MT, already on main thread
-            Verilated::flushCall();
+            Verilated::runFlushCallbacks();
             exit(0);
         }}
         Verilated::gotFinish(true);

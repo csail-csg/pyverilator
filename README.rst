@@ -43,18 +43,19 @@ python.
 
 .. code:: python
 
+    import pyverilator
+
     sim = pyverilator.PyVerilator.build('counter.v')
 
     # start gtkwave to view the waveforms as they are made
     sim.start_gtkwave()
 
     # add all the io and internal signals to gtkwave
-    sim.send_signals_to_gtkwave(sim.io)
-    sim.send_signals_to_gtkwave(sim.internals)
-
-    # add all the io and internal signals to gtkwave
     sim.send_to_gtkwave(sim.io)
     sim.send_to_gtkwave(sim.internals)
+
+    # set rst back to 1
+    sim.io.rst = 1
 
     # tick the automatically detected clock
     sim.clock.tick()
