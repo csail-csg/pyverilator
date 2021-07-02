@@ -455,13 +455,13 @@ class PyVerilator:
                             result.group(4)) == 0:
                         # this is an internal signal
                         signal_width = int(result.group(3)) - int(result.group(4)) + 1
-                        return (signal_name, signal_width)
+                        return (signal_name.strip('&'), signal_width)
                     else:
                         return None
                 else:
                     # this is an input or an output
                     signal_width = int(result.group(3)) - int(result.group(4)) + 1
-                    return (signal_name, signal_width)
+                    return (signal_name.strip('&'), signal_width)
             else:
                 return None
 
