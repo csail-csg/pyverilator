@@ -528,7 +528,7 @@ class PyVerilator:
         # if neither are found, look for names that start with clock or clk
         if self.clock is None:
             for sig_name in self.io:
-                if sig_name.startswith('clock') or sig_name.startswith('clk'):
+                if sig_name.startswith('clock') or sig_name.startswith('clk') or sig_name.startswith('i_clock'):
                     self.clock = Clock(self.io[sig_name].signal)
                     break
         # if neither are found, look for names that end with clock or clk
