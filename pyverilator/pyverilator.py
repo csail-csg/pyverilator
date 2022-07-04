@@ -451,7 +451,7 @@ class PyVerilator:
 
         def search_for_signal_decl(signal_type, line):
             # looks for VL_IN*, VL_OUT*, or VL_SIG* macros
-            result = re.search('(VL_' + signal_type + r'[^(]*)\(([^,]+),([0-9]+),([0-9]+)(?:,[0-9]+)?\);', line)
+            result = re.search('(VL_' + signal_type + r'[^(]*)\(&?([^,]+),([0-9]+),([0-9]+)(?:,[0-9]+)?\);', line)
             if result:
                 signal_name = result.group(2)
                 if signal_type == 'SIG':
