@@ -334,8 +334,8 @@ class Clock(Input):
         super().__init__(input_.sim_object, input_.verilator_name, input_.width)
 
     def tick(self):
-        self.write(0)
         self.write(1)
+        self.write(0)
 
 def call_process(args, quiet=False):
     if quiet:
