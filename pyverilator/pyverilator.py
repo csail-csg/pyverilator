@@ -369,7 +369,8 @@ class PyVerilator:
     default_vcd_filename = 'gtkwave.vcd'
 
     @classmethod
-    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
+    def build(cls, top_verilog_file, preceding_files='', verilog_path = [],
+            build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
               command_args=(), verilog_defines=()):
         """Build an object file from verilog and load it into python.
@@ -434,7 +435,10 @@ class PyVerilator:
                            '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
                             '--trace',
                             '--cc',
+                            preceding_files,
                             top_verilog_file,
+                            '--top',
+                            verilog_module_name,
                             '--exe',
                             verilator_cpp_wrapper_path]
         call_process(verilator_args)
