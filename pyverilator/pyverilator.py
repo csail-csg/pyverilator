@@ -371,7 +371,7 @@ class PyVerilator:
     @classmethod
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
-              command_args=[], verilog_defines=()):
+              command_args=(), verilog_defines=(), args=[]):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -394,6 +394,8 @@ class PyVerilator:
         ``command_args`` is passed to Verilator as its argv.  It can be used to pass arguments to the $test$plusargs and $value$plusargs system tasks.
 
         ``verilog_defines`` is a list of preprocessor defines; each entry should be a string, and defined macros with value should be specified as "MACRO=value".
+        
+        ``args`` list of arguments passed to verilator commandline. 
 
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
@@ -428,7 +430,7 @@ class PyVerilator:
         verilog_defines = ["+define+" + x for x in verilog_defines]
         # tracing (--trace) is required in order to see internal signals
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
-                         + command_args \
+                         + args \
                          + verilog_path_args \
                          + verilog_defines \
                          + ['-CFLAGS',
