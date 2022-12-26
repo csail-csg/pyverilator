@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import unittest
 import tempfile
 import shutil
@@ -741,13 +743,13 @@ class TestPyVerilator(unittest.TestCase):
         sim = pyverilator.PyVerilator.build('command_args_tester.v')
         test_sim(sim, 0)
 
-        sim = pyverilator.PyVerilator.build('command_args_tester_plus_one.v', command_args=('+plusone',))
+        sim = pyverilator.PyVerilator.build('command_args_tester_plus_one.v', command_args=['+plusone',])
         test_sim(sim, 1)
 
-        sim = pyverilator.PyVerilator.build('command_args_tester_step_two.v', command_args=('+step=2',))
+        sim = pyverilator.PyVerilator.build('command_args_tester_step_two.v', command_args=['+step=2',])
         test_sim(sim, 2)
 
-        sim = pyverilator.PyVerilator.build('command_args_tester_step_three.v', command_args=('+step=3',))
+        sim = pyverilator.PyVerilator.build('command_args_tester_step_three.v', command_args=['+step=3',])
         test_sim(sim, 3)
 
     @unittest.skipIf(shutil.which('verilator') is None, "test requires verilator to be in the path")
@@ -837,3 +839,6 @@ class TestPyVerilator(unittest.TestCase):
             self.assertEqual(sim.io[var + '_out'], 1)
             sim.io[var] = 0
             self.assertEqual(sim.io[var + '_out'], 0)
+
+if __name__ == '__main__':
+    unittest.main()
