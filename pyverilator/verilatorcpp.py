@@ -1,3 +1,5 @@
+from pyverilator.verilator_tools import verilator_flushcall_ok
+
 def header_cpp(top_module):
     s = """#include <cstddef>
 #include "verilated.h"
@@ -146,6 +148,10 @@ void set_command_args(int argc, char** argv) {{
             "{{ top->{portname} = new_value; return 0;}}")).format(module_filename='V' + top_module, portname=port[0])
                                   , inputs))
     footer = "}"
+    
+    if not(verilator_flushcall_ok()):
+        constant_part = constant_part.replace('Verilated::flushCall();','Verilated::runFlushCallbacks();')
+    
     return "\n".join([constant_part, get_functions, set_functions, footer])
 
 
