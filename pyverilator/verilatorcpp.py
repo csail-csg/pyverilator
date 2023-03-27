@@ -120,6 +120,7 @@ bool get_finished() {{
     return Verilated::gotFinish();
 }}
 void set_finished(bool b) {{
+    Verilated::threadContextp()->coveragep()->write("coverage.dat");
     Verilated::gotFinish(b);
 }}
 void set_vl_finish_callback(vl_finish_callback callback) {{
