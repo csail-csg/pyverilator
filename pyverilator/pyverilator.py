@@ -490,7 +490,7 @@ class PyVerilator:
 
         # call make to build the pyverilator shared object
         make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name,
-                     'LDFLAGS=-fPIC -shared']
+                     'LDFLAGS=-fPIC -shared', '--jobs']
         call_process(make_args, quiet=quiet)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
         return cls(so_file, command_args=command_args)
