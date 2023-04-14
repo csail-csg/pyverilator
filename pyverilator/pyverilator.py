@@ -7,6 +7,7 @@ import re
 import warnings
 import sys
 import typing
+import multiprocessing
 from keyword import iskeyword
 import pyverilator.verilatorcpp as template_cpp
 import tclwrapper
@@ -493,7 +494,7 @@ class PyVerilator:
 
         # call make to build the pyverilator shared object
         make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name,
-                     'LDFLAGS=-fPIC -shared', '--jobs']
+                     'LDFLAGS=-fPIC -shared', '--jobs', str(multiprocessing.cpu_count())]
         call_process(make_args, quiet=quiet, output_stream=output_stream)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
         return cls(so_file, command_args=command_args)
