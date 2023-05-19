@@ -375,6 +375,7 @@ class PyVerilator:
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
               command_args=(), verilog_defines=(), cpp_files=[],
+              raw_args=[],
               output_stream: typing.TextIO = None):
         """Build an object file from verilog and load it into python.
 
@@ -399,6 +400,8 @@ class PyVerilator:
 
         ``cpp_files`` allows us to include extra C++ files in Verilator builds. Necessary for DPI calls.
 
+        ``raw_args`` allows us to pass arguments directly to the perl invocation of Verilator.
+
         ``verilog_defines`` is a list of preprocessor defines; each entry should be a string, and defined macros with value should be specified as "MACRO=value".
 
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
@@ -410,6 +413,8 @@ class PyVerilator:
             raise TypeError('command_args expects a list of strings')
         if isinstance(cpp_files, str):
             raise TypeError('cpp_files expects a list of strings')
+        if isinstance(raw_args, str):
+            raise TypeError('raw_args expects a list of strings')
 
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
@@ -445,6 +450,7 @@ class PyVerilator:
                             '--coverage',
                             top_verilog_file] \
                          + cpp_files \
+                         + raw_args \
                          +  ['--exe',
                             verilator_cpp_wrapper_path]
         call_process(verilator_args, output_stream=output_stream)
