@@ -141,7 +141,7 @@ class Collection:
                 # if that fails, just return the object
                 return obj
         else:
-            raise AttributeError("'Collection' object has no attribute '%s'" % name)
+            raise AttributeError(f"'Collection' object has no attribute '{name}'")
 
     def __getitem__(self, name):
         obj = self._item_dict.get(name)
@@ -153,7 +153,7 @@ class Collection:
             except:
                 # if that fails, just return the object
                 return obj
-        raise ValueError("'Collection' object has no item '%s'" % name)
+        raise ValueError(f"'Collection' object has no item '{name}'")
 
     def __setitem__(self, name, value):
         obj = self._item_dict.get(name)
@@ -161,9 +161,9 @@ class Collection:
             try:
                 obj.collection_set(value)
             except:
-                raise TypeError("Item '%s' can not be set" % name)
+                raise TypeError(f"Item '{name}' can not be set")
         else:
-            raise ValueError('Item "%s" does not exist' % name)
+            raise ValueError(f'Item "{name}" does not exist')
 
     def __setattr__(self, name, value):
         if name == '_item_dict' or name == '_item_dict_keys':
@@ -184,9 +184,9 @@ class Collection:
                     # try to call collection_set()
                     obj.collection_set(value)
                 except:
-                    raise TypeError("Item '%s' can not be set" % name)
+                    raise TypeError(f"Item '{name}' can not be set")
             else:
-                raise ValueError('Item "%s" does not exist' % name)
+                raise ValueError(f'Item "{name}" does not exist')
 
     def __contains__(self, item_name):
         return item_name in self._item_dict
@@ -212,7 +212,7 @@ class Collection:
             if isinstance(item, Collection):
                 column_three.append('{} items'.format(len(item._item_dict_keys)))
             elif isinstance(item, str):
-                column_three.append('"%s"' % item)
+                column_three.append(f'"{item}"')
             else:
                 status = '<unknown status>'
                 try:
@@ -617,7 +617,7 @@ class PyVerilator:
             if port_name == name:
                 port_width = width
         if port_width is None:
-            raise ValueError('cannot read port "%s" because it does not exist' % port_name)
+            raise ValueError(f'cannot read port "{port_name}" because it does not exist')
         if port_width > 64:
             num_words = (port_width + 31) // 32
             return self._read_words(port_name, num_words)
@@ -656,7 +656,7 @@ class PyVerilator:
             if port_name == name:
                 port_width = width
         if port_width is None:
-            raise ValueError('cannot write port "%s" because it does not exist (or it is an output)' % port_name)
+            raise ValueError(f'cannot write port "{port_name}" because it does not exist (or it is an output)')
         if port_width > 64:
             num_words = (port_width + 31) // 32
             self._write_words(port_name, num_words, value)
@@ -805,7 +805,7 @@ class PyVerilator:
         self.gtkwave_active = True
         self.gtkwave_tcl = tclwrapper.TCLWrapper('gtkwave', '-W')
         self.gtkwave_tcl.start()
-        self.gtkwave_tcl.eval('gtkwave::loadFile %s' % self.vcd_filename)
+        self.gtkwave_tcl.eval(f'gtkwave::loadFile {self.vcd_filename}')
         # adjust the screen to show more of the trace
         zf = float(self.gtkwave_tcl.eval('gtkwave::getZoomFactor'))
         # this seems to work well
