@@ -453,6 +453,7 @@ class PyVerilator:
             if result:
                 signal_name = result.group(2)
                 if signal_type == 'SIG':
+                    # old verilator syntax VL_SIG
                     if signal_name.startswith(verilog_module_name) and '[' not in signal_name and int(
                             result.group(4)) == 0:
                         # this is an internal signal
@@ -465,7 +466,18 @@ class PyVerilator:
                     signal_width = int(result.group(3)) - int(result.group(4)) + 1
                     return (signal_name, signal_width)
             else:
-                return None
+                # internal signals are now in the following form, that includes the hierarchy
+                # CData/*0:0*/ ecdsa256_wrapper__DOT__ecdsa256_inst__DOT__next_dly;
+                if False and signal_type == 'SIG' and 'IData' in line:
+                    parts = line.split('__DOT__')
+                    if len(parts)==2:
+                        # this is a top-level internal signal
+                        signal_name = parts[1].strip(' ;\n')
+                        print(f'###################### signal_name <{signal_name}>')
+                        if not '[' in signal_name:
+                            signal_width = 1
+                            return (signal_name, signal_width)
+            return None
 
         with open(verilator_h_file) as f:
             for line in f:
@@ -699,7 +711,7 @@ class PyVerilator:
 
     @property
     def finished(self):
-        return self.lib.get_finished()
+        return self.lib.get_finished() & 1
 
     @finished.setter
     def finished(self, b):
