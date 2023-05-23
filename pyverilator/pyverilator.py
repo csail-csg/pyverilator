@@ -5,7 +5,6 @@ import subprocess
 import json
 import re
 import warnings
-import sys
 from keyword import iskeyword
 import pyverilator.verilatorcpp as template_cpp
 
