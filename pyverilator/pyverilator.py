@@ -520,6 +520,7 @@ class PyVerilator:
         self.curr_time = 0
         self.vcd_reader = None
         self.gtkwave_active = False
+        self.gtkwave_tcl = None
         self.lib = ctypes.CDLL(so_file)
         self._lib_vl_finish_callback = None
         self.set_command_args(command_args)
