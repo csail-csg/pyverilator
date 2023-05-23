@@ -1,5 +1,6 @@
+import subprocess
+
 def verilator_version():
-    import subprocess
     result = subprocess.run(['verilator', '--version'], stdout=subprocess.PIPE)
     ver = result.stdout.split()[1]
     return ver.decode("utf-8") 
