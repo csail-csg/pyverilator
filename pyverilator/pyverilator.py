@@ -332,8 +332,8 @@ class Clock(Input):
         super().__init__(input_.sim_object, input_.verilator_name, input_.width)
 
     def tick(self):
-        self.write(0)
         self.write(1)
+        self.write(0)
 
 def call_process(args, quiet=False):
     if quiet:
@@ -367,7 +367,8 @@ class PyVerilator:
     default_vcd_filename = 'gtkwave.vcd'
 
     @classmethod
-    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
+    def build(cls, top_verilog_file, preceding_files='', verilog_path = [],
+            build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
               command_args=(), verilog_defines=(), args=[]):
         """Build an object file from verilog and load it into python.
@@ -406,7 +407,7 @@ class PyVerilator:
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
         verilog_module_name, extension = os.path.splitext(top_verilog_file_base)
-        if extension != '.v':
+        if extension not in ['.v', '.sv']:
             raise ValueError('PyVerilator() expects top_verilog_file to be a verilog file ending in .v')
 
         # prepare the path for the C++ wrapper file
@@ -435,7 +436,10 @@ class PyVerilator:
                            '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
                             '--trace',
                             '--cc',
+                            preceding_files,
                             top_verilog_file,
+                            '--top',
+                            verilog_module_name,
                             '--exe',
                             verilator_cpp_wrapper_path]
         call_process(verilator_args)
@@ -448,7 +452,7 @@ class PyVerilator:
 
         def search_for_signal_decl(signal_type, line):
             # looks for VL_IN*, VL_OUT*, or VL_SIG* macros
-            result = re.search('(VL_' + signal_type + r'[^(]*)\(([^,]+),([0-9]+),([0-9]+)(?:,[0-9]+)?\);', line)
+            result = re.search('(VL_' + signal_type + r'[^(]*)\(&?([^,]+),([0-9]+),([0-9]+)(?:,[0-9]+)?\);', line)
             if result:
                 signal_name = result.group(2)
                 if signal_type == 'SIG':
@@ -542,7 +546,7 @@ class PyVerilator:
         # if neither are found, look for names that start with clock or clk
         if self.clock is None:
             for sig_name in self.io:
-                if sig_name.startswith('clock') or sig_name.startswith('clk'):
+                if sig_name.startswith('clock') or sig_name.startswith('clk') or sig_name.startswith('i_clock'):
                     self.clock = Clock(self.io[sig_name].signal)
                     break
         # if neither are found, look for names that end with clock or clk
