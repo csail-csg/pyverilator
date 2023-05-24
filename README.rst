@@ -1,3 +1,10 @@
+PyVerilator-mm
+==============
+
+This is a fork of the original pyverilator package, that manages a newer verilator syntax 
+and works with WSL (by importing tclwraper only if gtkwave is required).
+Below the original readme.
+
 PyVerilator
 ===========
 
