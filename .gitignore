@@ -2,4 +2,4 @@
 __pycache__/
 examples/build
 .*
-dist/pyverilator-mm-0.7.1.tar.gz
+*.gz
