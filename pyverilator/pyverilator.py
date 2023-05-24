@@ -438,8 +438,8 @@ class PyVerilator:
                             '--cc',
                             preceding_files,
                             top_verilog_file,
-                            '--top',
-                            verilog_module_name,
+                            # '--top',
+                            # verilog_module_name,
                             '--exe',
                             verilator_cpp_wrapper_path]
         call_process(verilator_args)
