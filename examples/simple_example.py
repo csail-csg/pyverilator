@@ -26,14 +26,21 @@ test_verilog = '''
 with open('counter.v', 'w') as f:
     f.write(test_verilog)
 
-sim = pyverilator.PyVerilator.build('counter.v')
+
+dump_fst = True
+if dump_fst:
+    dump_filename = 'dump.fst'
+else:
+    dump_filename = 'dump.vcd'
+sim = pyverilator.PyVerilator.build('counter.v',dump_fst=dump_fst)
 
 # start gtkwave to view the waveforms as they are made
-sim.start_gtkwave()
+# sim.start_gtkwave() # moved at the bottom... updating gtkwave during simulation is slow
+sim.start_vcd_trace(dump_filename)
 
 # add all the io and internal signals to gtkwave
-sim.send_to_gtkwave(sim.io)
-sim.send_to_gtkwave(sim.internals)
+# sim.send_to_gtkwave(sim.io)        # this still works
+# sim.send_to_gtkwave(sim.internals) # not working anymore
 
 # set the rst input to 1
 sim.io.rst = 1
@@ -57,3 +64,6 @@ sim.clock.tick()
 
 curr_out = sim.io.out.value
 print('sim.io.out = ' + str(curr_out))
+
+sim.stop_vcd_trace()
+sim.start_gtkwave() # moved at the bottom works both with fst and vcd

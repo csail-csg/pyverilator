@@ -1,13 +1,24 @@
 from pyverilator.verilator_tools import verilator_flushcall_ok
 
 def header_cpp(top_module):
-    s = """#include <cstddef>
-#include "verilated.h"
-#include "verilated_vcd_c.h"
-#include "{module_filename}.h"
-    """.format(module_filename='V' + top_module)
-    return s
-
+    return f"""#include <cstddef>
+    #include "verilated.h"
+    #if VM_TRACE
+        #ifndef DUMPLEVEL
+            #define DUMP_LEVEL 0
+        #endif
+        #ifdef DUMP_FST
+            #include <verilated_fst_c.h>
+            #define DUMP_TYPE VerilatedFstC
+            // #define DUMP_FILE "dump.fst"
+        #else
+            #include <verilated_vcd_c.h>
+            #define DUMP_TYPE VerilatedVcdC
+            // #define DUMP_FILE "dump.vcd"
+        #endif
+    #endif
+    #include "{'V' + top_module}.h"
+    """
 
 def var_declaration_cpp(top_module, inputs, outputs, internal_signals, json_data):
     s = """// pyverilator defined values
@@ -100,21 +111,21 @@ int destruct({module_filename}* top) {{
     }}
     return 0;
 }}
-VerilatedVcdC* start_vcd_trace({module_filename}* top, const char* filename) {{
-    VerilatedVcdC* tfp = new VerilatedVcdC;
-    top->trace(tfp, 99);
+DUMP_TYPE* start_vcd_trace({module_filename}* top, const char* filename) {{
+    DUMP_TYPE* tfp = new DUMP_TYPE;
+    top->trace(tfp, DUMP_LEVEL);
     tfp->open(filename);
     return tfp;
 }}
-int add_to_vcd_trace(VerilatedVcdC* tfp, int time) {{
+int add_to_vcd_trace(DUMP_TYPE* tfp, int time) {{
     tfp->dump(time);
     return 0;
 }}
-int flush_vcd_trace(VerilatedVcdC* tfp) {{
+int flush_vcd_trace(DUMP_TYPE* tfp) {{
     tfp->flush();
     return 0;
 }}
-int stop_vcd_trace(VerilatedVcdC* tfp) {{
+int stop_vcd_trace(DUMP_TYPE* tfp) {{
     tfp->close();
     return 0;
 }}
@@ -149,7 +160,7 @@ void set_command_args(int argc, char** argv) {{
                                   , inputs))
     footer = "}"
     
-    if not(verilator_flushcall_ok()):
+    if not verilator_flushcall_ok():
         constant_part = constant_part.replace('Verilated::flushCall();','Verilated::runFlushCallbacks();')
     
     return "\n".join([constant_part, get_functions, set_functions, footer])

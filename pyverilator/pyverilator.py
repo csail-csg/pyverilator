@@ -369,8 +369,9 @@ class PyVerilator:
     @classmethod
     def build(cls, top_verilog_file, preceding_files='', verilog_path = [],
             build_dir = 'obj_dir',
-              json_data = None, gen_only = False, quiet=False,
-              command_args=(), verilog_defines=(), args=[]):
+            json_data = None, gen_only = False, quiet=False,
+            command_args=(), verilog_defines=(), args=[], cargs='', dump_fst = False,
+        ):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -427,21 +428,30 @@ class PyVerilator:
         if which_verilator is None:
             raise Exception("'verilator' executable not found")
         verilog_defines = ["+define+" + x for x in verilog_defines]
-        # tracing (--trace) is required in order to see internal signals
+        cflags = '-fPIC -shared --std=c++11 -DVL_USER_FINISH ' + cargs
+        if dump_fst:
+            cflags += '-DDUMP_FST'
+
+        vargs = ['-CFLAGS',
+                cflags,
+                '--trace', # tracing (--trace) is required in order to see internal signals
+                '--cc',
+                preceding_files,
+                top_verilog_file,
+                # '--top',
+                # verilog_module_name,
+                '--exe',
+                verilator_cpp_wrapper_path,
+                ]
+
+        if dump_fst:
+            vargs += ['--trace-fst'] # allow fst saving that is faster
+
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
                          + args \
                          + verilog_path_args \
                          + verilog_defines \
-                         + ['-CFLAGS',
-                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
-                            '--trace',
-                            '--cc',
-                            preceding_files,
-                            top_verilog_file,
-                            # '--top',
-                            # verilog_module_name,
-                            '--exe',
-                            verilator_cpp_wrapper_path]
+                         + vargs
         call_process(verilator_args)
 
         # get inputs, outputs, and internal signals by parsing the generated verilator output
@@ -782,7 +792,7 @@ class PyVerilator:
         stop_vcd_trace(self.vcd_trace)
         self.vcd_trace = None
         self.auto_tracing_mode = None
-        self.vcd_filename = None
+        # self.vcd_filename = None
 
     def reload_dump_file(self):
         if self.gtkwave_active:
