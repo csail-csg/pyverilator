@@ -725,6 +725,7 @@ class PyVerilator:
 
     @property
     def finished(self):
+        self.stop_vcd_trace()
         return self.lib.get_finished() & 1
 
     @finished.setter
