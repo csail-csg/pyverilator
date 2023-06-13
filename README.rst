@@ -47,7 +47,7 @@ Assume you have the following verilog module stored in ``counter.v``.
             if (rst == 1) count_reg <= 0;
             else          count_reg <= next_count_reg;
         end
-    endmodule'''
+    endmodule
 
 Then you can use ``pyverilator`` to simulate this module using verilator in
 python.
@@ -61,11 +61,11 @@ python.
 
     # add all the io and internal signals to gtkwave
     sim.send_signals_to_gtkwave(sim.io)
-    sim.send_signals_to_gtkwave(sim.internals)
+    # sim.send_signals_to_gtkwave(sim.internals) # not working anymore
 
     # add all the io and internal signals to gtkwave
     sim.send_to_gtkwave(sim.io)
-    sim.send_to_gtkwave(sim.internals)
+    # sim.send_to_gtkwave(sim.internals) # not working anymore
 
     # tick the automatically detected clock
     sim.clock.tick()
