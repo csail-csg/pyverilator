@@ -42,7 +42,7 @@ then
     show_usage
 fi
 
-if [[ "$CREATE" -gt 0 ]];
+if [[ "$CREATE" -gt 0 || "$UPLOAD" -gt 0 || "$UPLOAD_TEST" -gt 0 ]];
 then
     echo "Creating new package... "
     rm -rf $DIST # remove old package folder
