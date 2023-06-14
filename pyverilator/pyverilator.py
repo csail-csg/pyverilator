@@ -370,7 +370,8 @@ class PyVerilator:
     def build(cls, top_verilog_file, preceding_files='', verilog_path = [],
             build_dir = 'obj_dir',
             json_data = None, gen_only = False, quiet=False,
-            command_args=(), verilog_defines=(), args=[], cargs='', dump_fst = False,
+            command_args=(), verilog_defines=(), args=[], cargs='', 
+            dump_en = True, dump_fst = False, dump_level=0
         ):
         """Build an object file from verilog and load it into python.
 
@@ -429,8 +430,11 @@ class PyVerilator:
             raise Exception("'verilator' executable not found")
         verilog_defines = ["+define+" + x for x in verilog_defines]
         cflags = '-fPIC -shared --std=c++11 -DVL_USER_FINISH ' + cargs
-        if dump_fst:
-            cflags += '-DDUMP_FST'
+        
+        if dump_en:
+            cflags += ' -DDUMP_LEVEL=%d' % dump_level
+            if dump_fst:
+                cflags += ' -DDUMP_FST'
 
         vargs = ['-CFLAGS',
                 cflags,
@@ -444,7 +448,7 @@ class PyVerilator:
                 verilator_cpp_wrapper_path,
                 ]
 
-        if dump_fst:
+        if dump_en and dump_fst:
             vargs += ['--trace-fst'] # allow fst saving that is faster
 
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \

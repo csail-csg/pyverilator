@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='pyverilator-mm',
-    version='0.7.3',
+    version='0.7.5',
     description='Python interface to Verilator models',
     long_description=long_description,
     url='https://github.com/bat52/pyverilator',

@@ -32,7 +32,7 @@ if dump_fst:
     dump_filename = 'dump.fst'
 else:
     dump_filename = 'dump.vcd'
-sim = pyverilator.PyVerilator.build('counter.v',dump_fst=dump_fst)
+sim = pyverilator.PyVerilator.build('counter.v',dump_fst=dump_fst,dump_level=1)
 
 # start gtkwave to view the waveforms as they are made
 # sim.start_gtkwave() # moved at the bottom... updating gtkwave during simulation is slow

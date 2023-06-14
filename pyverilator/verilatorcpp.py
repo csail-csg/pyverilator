@@ -4,7 +4,7 @@ def header_cpp(top_module):
     return f"""#include <cstddef>
     #include "verilated.h"
     #if VM_TRACE
-        #ifndef DUMPLEVEL
+        #ifndef DUMP_LEVEL
             #define DUMP_LEVEL 0
         #endif
         #ifdef DUMP_FST
