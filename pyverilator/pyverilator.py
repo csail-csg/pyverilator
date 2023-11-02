@@ -6,6 +6,8 @@ import json
 import re
 import warnings
 import sys
+import typing
+import multiprocessing
 from keyword import iskeyword
 import pyverilator.verilatorcpp as template_cpp
 import tclwrapper
@@ -337,12 +339,13 @@ class Clock(Input):
         self.write(0)
         self.write(1)
 
-def call_process(args, quiet=False):
+def call_process(args, quiet=False, output_stream: typing.TextIO = None):
     if quiet:
         subprocess.run(args, stderr=subprocess.PIPE,
                        stdout=subprocess.PIPE, check=True)
     else:
-        subprocess.check_call(args)
+        subprocess.check_call(args, stderr=output_stream,
+                       stdout=output_stream)
 
 class PyVerilator:
     """Python wrapper for verilator model.
@@ -371,7 +374,9 @@ class PyVerilator:
     @classmethod
     def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
               json_data = None, gen_only = False, quiet=False,
-              command_args=(), verilog_defines=()):
+              command_args=(), verilog_defines=(), cpp_files=[],
+              raw_args=[],
+              output_stream: typing.TextIO = None):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -393,6 +398,10 @@ class PyVerilator:
 
         ``command_args`` is passed to Verilator as its argv.  It can be used to pass arguments to the $test$plusargs and $value$plusargs system tasks.
 
+        ``cpp_files`` allows us to include extra C++ files in Verilator builds. Necessary for DPI calls.
+
+        ``raw_args`` allows us to pass arguments directly to the perl invocation of Verilator.
+
         ``verilog_defines`` is a list of preprocessor defines; each entry should be a string, and defined macros with value should be specified as "MACRO=value".
 
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
@@ -402,6 +411,10 @@ class PyVerilator:
             raise TypeError('verilog_defines expects a list of strings')
         if isinstance(command_args, str):
             raise TypeError('command_args expects a list of strings')
+        if isinstance(cpp_files, str):
+            raise TypeError('cpp_files expects a list of strings')
+        if isinstance(raw_args, str):
+            raise TypeError('raw_args expects a list of strings')
 
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
@@ -434,10 +447,12 @@ class PyVerilator:
                            '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
                             '--trace',
                             '--cc',
-                            top_verilog_file,
-                            '--exe',
+                            top_verilog_file] \
+                         + cpp_files \
+                         + raw_args \
+                         +  ['--exe',
                             verilator_cpp_wrapper_path]
-        call_process(verilator_args)
+        call_process(verilator_args, output_stream=output_stream)
 
         # get inputs, outputs, and internal signals by parsing the generated verilator output
         inputs = []
@@ -489,8 +504,8 @@ class PyVerilator:
 
         # call make to build the pyverilator shared object
         make_args = ['make', '-C', build_dir, '-f', 'V%s.mk' % verilog_module_name,
-                     'LDFLAGS=-fPIC -shared']
-        call_process(make_args, quiet=quiet)
+                     'LDFLAGS=-fPIC -shared', '--jobs', str(multiprocessing.cpu_count())]
+        call_process(make_args, quiet=quiet, output_stream=output_stream)
         so_file = os.path.join(build_dir, 'V' + verilog_module_name)
         return cls(so_file, command_args=command_args)
 
