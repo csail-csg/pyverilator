@@ -769,35 +769,38 @@ class PyVerilator:
 
     def add_to_vcd_trace(self):
         if self.vcd_trace is None:
-            raise ValueError('add_to_vcd_trace() requires VCD tracing to be active')
-        add_to_vcd_trace = self.lib.add_to_vcd_trace
-        add_to_vcd_trace.argtypes = [ctypes.c_void_p, ctypes.c_int]
-        # do two steps so the most recent value in GTKWave is more obvious
-        self.curr_time += 5
-        add_to_vcd_trace(self.vcd_trace, self.curr_time)
-        self.curr_time += 5
-        add_to_vcd_trace(self.vcd_trace, self.curr_time)
-        # go ahead and flush on each vcd update
-        self.flush_vcd_trace()
+            print('add_to_vcd_trace() requires VCD tracing to be active')
+        else:
+            add_to_vcd_trace = self.lib.add_to_vcd_trace
+            add_to_vcd_trace.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            # do two steps so the most recent value in GTKWave is more obvious
+            self.curr_time += 5
+            add_to_vcd_trace(self.vcd_trace, self.curr_time)
+            self.curr_time += 5
+            add_to_vcd_trace(self.vcd_trace, self.curr_time)
+            # go ahead and flush on each vcd update
+            self.flush_vcd_trace()
 
     def flush_vcd_trace(self):
         if self.vcd_trace is None:
-            raise ValueError('flush_vcd_trace() requires VCD tracing to be active')
-        flush_vcd_trace = self.lib.flush_vcd_trace
-        flush_vcd_trace.argtypes = [ctypes.c_void_p]
-        flush_vcd_trace(self.vcd_trace)
-        if self.gtkwave_active:
-            self.reload_dump_file()
+            print('flush_vcd_trace() requires VCD tracing to be active')
+        else:
+            flush_vcd_trace = self.lib.flush_vcd_trace
+            flush_vcd_trace.argtypes = [ctypes.c_void_p]
+            flush_vcd_trace(self.vcd_trace)
+            if self.gtkwave_active:
+                self.reload_dump_file()
 
     def stop_vcd_trace(self):
         if self.vcd_trace is None:
-            raise ValueError('stop_vcd_trace() requires VCD tracing to be active')
-        stop_vcd_trace = self.lib.stop_vcd_trace
-        stop_vcd_trace.argtypes = [ctypes.c_void_p]
-        stop_vcd_trace(self.vcd_trace)
-        self.vcd_trace = None
-        self.auto_tracing_mode = None
-        # self.vcd_filename = None
+            print('stop_vcd_trace() requires VCD tracing to be active')
+        else:
+            stop_vcd_trace = self.lib.stop_vcd_trace
+            stop_vcd_trace.argtypes = [ctypes.c_void_p]
+            stop_vcd_trace(self.vcd_trace)
+            self.vcd_trace = None
+            self.auto_tracing_mode = None
+            # self.vcd_filename = None
 
     def reload_dump_file(self):
         if self.gtkwave_active:
