@@ -10,7 +10,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='pyverilator-mm',
-    version='0.7.5',
+    version='0.7.6',
     description='Python interface to Verilator models',
     long_description=long_description,
     url='https://github.com/bat52/pyverilator',
@@ -29,11 +29,11 @@ setup(
     keywords='Verilator Wrapper Verilog',
     packages=find_packages(exclude=['examples']),
     include_package_data=True,
-    install_requires=[],
+    install_requires=['packaging'],
     setup_requires=['pytest-runner'],
     tests_require=['pytest',
-                   'tclwrapper>=0.0.1',
-                    'packaging'],
+                   'tclwrapper>=0.0.1'
+                    ],
     entry_points={
         # If we ever want to add an executable script, this is where it goes
     },
