@@ -25,5 +25,5 @@ jobs:
         pip list
     - name: test
       run: |
-        cd ./pyverilator/tests
-        python ./test_pyverilator.py
+        cd ./pyverilator
+        python ./tests/test_pyverilator.py
