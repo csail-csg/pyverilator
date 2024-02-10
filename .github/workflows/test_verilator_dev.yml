@@ -27,7 +27,7 @@ jobs:
         git clone https://github.com/verilator/verilator
 
         # Every time you need to build:
-        unsetenv VERILATOR_ROOT  # For csh; ignore error if on bash
+        # unsetenv VERILATOR_ROOT  # For csh; ignore error if on bash
         unset VERILATOR_ROOT  # For bash
         cd verilator
         git pull         # Make sure git repository is up-to-date
