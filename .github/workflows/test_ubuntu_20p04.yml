@@ -20,10 +20,10 @@ jobs:
     - name: check verilator version
       run: | 
         verilator --version
-    - name: pip configuration report
+    - name: install pyverilator
       run: |
-        pip list
+        python -m pip install -e ./
     - name: test
       run: |
-        cd ./pyverilator
-        python ./tests/test_pyverilator.py
+        cd ./pyverilator/tests
+        python ./test_pyverilator.py
