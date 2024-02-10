@@ -17,6 +17,7 @@ jobs:
     - name: Install build pre-requisites
       run: |
         sudo apt update
+        sudo apt install gcc-9 gcc-10
         sudo apt-get install git help2man perl python3 make autoconf g++ flex bison ccache
         sudo apt-get install numactl perl-doc # libgoogle-perftools-dev 
         sudo apt-get install libfl2  # Ubuntu only (ignore if gives error)
@@ -46,6 +47,9 @@ jobs:
     - name: check verilator version
       run: | 
         verilator --version
+    - name: check gcc version
+      run: | 
+        gcc --version
     - name: update pip
       run: |
         pip install --upgrade pip
