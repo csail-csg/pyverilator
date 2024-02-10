@@ -1,0 +1,54 @@
+name: TestVerilatorDev
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install build pre-requisites
+      run: |
+        sudo apt-get install git help2man perl python3 make autoconf g++ flex bison ccache
+        sudo apt-get install libgoogle-perftools-dev numactl perl-doc
+        sudo apt-get install libfl2  # Ubuntu only (ignore if gives error)
+        sudo apt-get install libfl-dev  # Ubuntu only (ignore if gives error)
+        sudo apt-get install zlibc zlib1g zlib1g-dev  # Ubuntu only (ignore if gives error)
+    - name: Install verilator from github
+      run: |
+        git clone https://github.com/verilator/verilator
+
+        # Every time you need to build:
+        unsetenv VERILATOR_ROOT  # For csh; ignore error if on bash
+        unset VERILATOR_ROOT  # For bash
+        cd verilator
+        git pull         # Make sure git repository is up-to-date
+        git tag          # See what versions exist
+        git checkout master      # Use development branch (e.g. recent bug fixes)
+        #git checkout stable      # Use most recent stable release
+        #git checkout v{version}  # Switch to specified release version
+        
+        autoconf         # Create ./configure script
+        ./configure      # Configure and create Makefile
+        make -j `nproc`  # Build Verilator itself (if error, try just 'make')
+        sudo make install
+
+        setenv VERILATOR_ROOT=`pwd`
+        cd ..
+    - name: check verilator version
+      run: | 
+        verilator --version
+    - name: install pyverilator
+      run: |
+        python -m pip install -e ./
+    - name: test
+      run: |
+        cd ./pyverilator/tests
+        python ./test_pyverilator.py
