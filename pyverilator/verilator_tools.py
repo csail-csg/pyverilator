@@ -6,7 +6,7 @@ from packaging import version
 
 def verilator_version():
     """ Returns verilator version """
-    result = subprocess.run(['verilator', '--version'], stdout=subprocess.PIPE)
+    result = subprocess.run(['verilator', '--version'], stdout=subprocess.PIPE, check=False)
     ver = result.stdout.split()[1]
     return ver.decode("utf-8")
 
@@ -36,4 +36,4 @@ def test_verilator_tools():
     print('OK!\n')
 
 if __name__ == '__main__':
-    test_verilator_tools()   
+    test_verilator_tools()
