@@ -5,10 +5,8 @@ import subprocess
 import json
 import re
 import warnings
-import sys
 from keyword import iskeyword
 import pyverilator.verilatorcpp as template_cpp
-import tclwrapper
 
 def verilator_name_to_standard_modular_name(verilator_name):
     """Converts a name exposed in Verilator to its standard name.
@@ -143,7 +141,7 @@ class Collection:
                 # if that fails, just return the object
                 return obj
         else:
-            raise AttributeError("'Collection' object has no attribute '%s'" % name)
+            raise AttributeError(f"'Collection' object has no attribute '{name}'")
 
     def __getitem__(self, name):
         obj = self._item_dict.get(name)
@@ -155,7 +153,7 @@ class Collection:
             except:
                 # if that fails, just return the object
                 return obj
-        raise ValueError("'Collection' object has no item '%s'" % name)
+        raise ValueError(f"'Collection' object has no item '{name}'")
 
     def __setitem__(self, name, value):
         obj = self._item_dict.get(name)
@@ -163,9 +161,9 @@ class Collection:
             try:
                 obj.collection_set(value)
             except:
-                raise TypeError("Item '%s' can not be set" % name)
+                raise TypeError(f"Item '{name}' can not be set")
         else:
-            raise ValueError('Item "%s" does not exist' % name)
+            raise ValueError(f'Item "{name}" does not exist')
 
     def __setattr__(self, name, value):
         if name == '_item_dict' or name == '_item_dict_keys':
@@ -186,9 +184,9 @@ class Collection:
                     # try to call collection_set()
                     obj.collection_set(value)
                 except:
-                    raise TypeError("Item '%s' can not be set" % name)
+                    raise TypeError(f"Item '{name}' can not be set")
             else:
-                raise ValueError('Item "%s" does not exist' % name)
+                raise ValueError(f'Item "{name}" does not exist')
 
     def __contains__(self, item_name):
         return item_name in self._item_dict
@@ -214,7 +212,7 @@ class Collection:
             if isinstance(item, Collection):
                 column_three.append('{} items'.format(len(item._item_dict_keys)))
             elif isinstance(item, str):
-                column_three.append('"%s"' % item)
+                column_three.append(f'"{item}"')
             else:
                 status = '<unknown status>'
                 try:
@@ -334,8 +332,8 @@ class Clock(Input):
         super().__init__(input_.sim_object, input_.verilator_name, input_.width)
 
     def tick(self):
-        self.write(0)
         self.write(1)
+        self.write(0)
 
 def call_process(args, quiet=False):
     if quiet:
@@ -369,9 +367,12 @@ class PyVerilator:
     default_vcd_filename = 'gtkwave.vcd'
 
     @classmethod
-    def build(cls, top_verilog_file, verilog_path = [], build_dir = 'obj_dir',
-              json_data = None, gen_only = False, quiet=False,
-              command_args=(), verilog_defines=()):
+    def build(cls, top_verilog_file, preceding_files='', verilog_path = [],
+            build_dir = 'obj_dir',
+            json_data = None, gen_only = False, quiet=False,
+            command_args=(), verilog_defines=(), args=[], cargs='', 
+            dump_en = True, dump_fst = False, dump_level=0
+        ):
         """Build an object file from verilog and load it into python.
 
         Creates a folder build_dir in which it puts all the files necessary to create
@@ -394,6 +395,8 @@ class PyVerilator:
         ``command_args`` is passed to Verilator as its argv.  It can be used to pass arguments to the $test$plusargs and $value$plusargs system tasks.
 
         ``verilog_defines`` is a list of preprocessor defines; each entry should be a string, and defined macros with value should be specified as "MACRO=value".
+        
+        ``args`` list of arguments passed to verilator commandline. 
 
         If compilation fails, this function raises a ``subprocess.CalledProcessError``.
         """
@@ -406,7 +409,7 @@ class PyVerilator:
         # get the module name from the verilog file name
         top_verilog_file_base = os.path.basename(top_verilog_file)
         verilog_module_name, extension = os.path.splitext(top_verilog_file_base)
-        if extension != '.v':
+        if extension not in ['.v', '.sv']:
             raise ValueError('PyVerilator() expects top_verilog_file to be a verilog file ending in .v')
 
         # prepare the path for the C++ wrapper file
@@ -426,17 +429,33 @@ class PyVerilator:
         if which_verilator is None:
             raise Exception("'verilator' executable not found")
         verilog_defines = ["+define+" + x for x in verilog_defines]
-        # tracing (--trace) is required in order to see internal signals
+        cflags = '-fPIC -shared --std=c++11 -DVL_USER_FINISH ' + cargs
+        
+        if dump_en:
+            cflags += ' -DDUMP_LEVEL=%d' % dump_level
+            if dump_fst:
+                cflags += ' -DDUMP_FST'
+
+        vargs = ['-CFLAGS',
+                cflags,
+                '--trace', # tracing (--trace) is required in order to see internal signals
+                '--cc',
+                preceding_files,
+                top_verilog_file,
+                # '--top',
+                # verilog_module_name,
+                '--exe',
+                verilator_cpp_wrapper_path,
+                ]
+
+        if dump_en and dump_fst:
+            vargs += ['--trace-fst'] # allow fst saving that is faster
+
         verilator_args = ['perl', which_verilator, '-Wno-fatal', '-Mdir', build_dir] \
+                         + args \
                          + verilog_path_args \
                          + verilog_defines \
-                         + ['-CFLAGS',
-                           '-fPIC -shared --std=c++11 -DVL_USER_FINISH',
-                            '--trace',
-                            '--cc',
-                            top_verilog_file,
-                            '--exe',
-                            verilator_cpp_wrapper_path]
+                         + vargs
         call_process(verilator_args)
 
         # get inputs, outputs, and internal signals by parsing the generated verilator output
@@ -447,10 +466,11 @@ class PyVerilator:
 
         def search_for_signal_decl(signal_type, line):
             # looks for VL_IN*, VL_OUT*, or VL_SIG* macros
-            result = re.search('(VL_' + signal_type + r'[^(]*)\(([^,]+),([0-9]+),([0-9]+)(?:,[0-9]+)?\);', line)
+            result = re.search('(VL_' + signal_type + r'[^(]*)\(&?([^,]+),([0-9]+),([0-9]+)(?:,[0-9]+)?\);', line)
             if result:
                 signal_name = result.group(2)
                 if signal_type == 'SIG':
+                    # old verilator syntax VL_SIG
                     if signal_name.startswith(verilog_module_name) and '[' not in signal_name and int(
                             result.group(4)) == 0:
                         # this is an internal signal
@@ -463,7 +483,18 @@ class PyVerilator:
                     signal_width = int(result.group(3)) - int(result.group(4)) + 1
                     return (signal_name, signal_width)
             else:
-                return None
+                # internal signals are now in the following form, that includes the hierarchy
+                # CData/*0:0*/ ecdsa256_wrapper__DOT__ecdsa256_inst__DOT__next_dly;
+                if False and signal_type == 'SIG' and 'IData' in line:
+                    parts = line.split('__DOT__')
+                    if len(parts)==2:
+                        # this is a top-level internal signal
+                        signal_name = parts[1].strip(' ;\n')
+                        print(f'###################### signal_name <{signal_name}>')
+                        if not '[' in signal_name:
+                            signal_width = 1
+                            return (signal_name, signal_width)
+            return None
 
         with open(verilator_h_file) as f:
             for line in f:
@@ -507,6 +538,7 @@ class PyVerilator:
         self.curr_time = 0
         self.vcd_reader = None
         self.gtkwave_active = False
+        self.gtkwave_tcl = None
         self.lib = ctypes.CDLL(so_file)
         self._lib_vl_finish_callback = None
         self.set_command_args(command_args)
@@ -528,7 +560,7 @@ class PyVerilator:
         # if neither are found, look for names that start with clock or clk
         if self.clock is None:
             for sig_name in self.io:
-                if sig_name.startswith('clock') or sig_name.startswith('clk'):
+                if sig_name.startswith('clock') or sig_name.startswith('clk') or sig_name.startswith('i_clock'):
                     self.clock = Clock(self.io[sig_name].signal)
                     break
         # if neither are found, look for names that end with clock or clk
@@ -603,7 +635,7 @@ class PyVerilator:
             if port_name == name:
                 port_width = width
         if port_width is None:
-            raise ValueError('cannot read port "%s" because it does not exist' % port_name)
+            raise ValueError(f'cannot read port "{port_name}" because it does not exist')
         if port_width > 64:
             num_words = (port_width + 31) // 32
             return self._read_words(port_name, num_words)
@@ -642,7 +674,7 @@ class PyVerilator:
             if port_name == name:
                 port_width = width
         if port_width is None:
-            raise ValueError('cannot write port "%s" because it does not exist (or it is an output)' % port_name)
+            raise ValueError(f'cannot write port "{port_name}" because it does not exist (or it is an output)')
         if port_width > 64:
             num_words = (port_width + 31) // 32
             self._write_words(port_name, num_words, value)
@@ -697,7 +729,8 @@ class PyVerilator:
 
     @property
     def finished(self):
-        return self.lib.get_finished()
+        self.stop_vcd_trace()
+        return self.lib.get_finished() & 1
 
     @finished.setter
     def finished(self, b):
@@ -736,35 +769,38 @@ class PyVerilator:
 
     def add_to_vcd_trace(self):
         if self.vcd_trace is None:
-            raise ValueError('add_to_vcd_trace() requires VCD tracing to be active')
-        add_to_vcd_trace = self.lib.add_to_vcd_trace
-        add_to_vcd_trace.argtypes = [ctypes.c_void_p, ctypes.c_int]
-        # do two steps so the most recent value in GTKWave is more obvious
-        self.curr_time += 5
-        add_to_vcd_trace(self.vcd_trace, self.curr_time)
-        self.curr_time += 5
-        add_to_vcd_trace(self.vcd_trace, self.curr_time)
-        # go ahead and flush on each vcd update
-        self.flush_vcd_trace()
+            print('add_to_vcd_trace() requires VCD tracing to be active')
+        else:
+            add_to_vcd_trace = self.lib.add_to_vcd_trace
+            add_to_vcd_trace.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            # do two steps so the most recent value in GTKWave is more obvious
+            self.curr_time += 5
+            add_to_vcd_trace(self.vcd_trace, self.curr_time)
+            self.curr_time += 5
+            add_to_vcd_trace(self.vcd_trace, self.curr_time)
+            # go ahead and flush on each vcd update
+            self.flush_vcd_trace()
 
     def flush_vcd_trace(self):
         if self.vcd_trace is None:
-            raise ValueError('flush_vcd_trace() requires VCD tracing to be active')
-        flush_vcd_trace = self.lib.flush_vcd_trace
-        flush_vcd_trace.argtypes = [ctypes.c_void_p]
-        flush_vcd_trace(self.vcd_trace)
-        if self.gtkwave_active:
-            self.reload_dump_file()
+            print('flush_vcd_trace() requires VCD tracing to be active')
+        else:
+            flush_vcd_trace = self.lib.flush_vcd_trace
+            flush_vcd_trace.argtypes = [ctypes.c_void_p]
+            flush_vcd_trace(self.vcd_trace)
+            if self.gtkwave_active:
+                self.reload_dump_file()
 
     def stop_vcd_trace(self):
         if self.vcd_trace is None:
-            raise ValueError('stop_vcd_trace() requires VCD tracing to be active')
-        stop_vcd_trace = self.lib.stop_vcd_trace
-        stop_vcd_trace.argtypes = [ctypes.c_void_p]
-        stop_vcd_trace(self.vcd_trace)
-        self.vcd_trace = None
-        self.auto_tracing_mode = None
-        self.vcd_filename = None
+            print('stop_vcd_trace() requires VCD tracing to be active')
+        else:
+            stop_vcd_trace = self.lib.stop_vcd_trace
+            stop_vcd_trace.argtypes = [ctypes.c_void_p]
+            stop_vcd_trace(self.vcd_trace)
+            self.vcd_trace = None
+            self.auto_tracing_mode = None
+            # self.vcd_filename = None
 
     def reload_dump_file(self):
         if self.gtkwave_active:
@@ -782,6 +818,7 @@ class PyVerilator:
                     self.gtkwave_tcl.eval('gtkwave::setWindowStartTime %d' % (window_start_time + time_shift_amt))
 
     def start_gtkwave(self):
+        import tclwrapper # tclwrapper requires tkinter, which does not work on WSL
         if self.vcd_filename is None:
             self.start_vcd_trace(PyVerilator.default_vcd_filename)
         # in preparation for using tclwrapper with gtkwave, add a warning filter
@@ -790,7 +827,7 @@ class PyVerilator:
         self.gtkwave_active = True
         self.gtkwave_tcl = tclwrapper.TCLWrapper('gtkwave', '-W')
         self.gtkwave_tcl.start()
-        self.gtkwave_tcl.eval('gtkwave::loadFile %s' % self.vcd_filename)
+        self.gtkwave_tcl.eval(f'gtkwave::loadFile {self.vcd_filename}')
         # adjust the screen to show more of the trace
         zf = float(self.gtkwave_tcl.eval('gtkwave::getZoomFactor'))
         # this seems to work well

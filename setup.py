@@ -9,12 +9,12 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='PyVerilator',
-    version='0.7.0',
+    name='pyverilator-mm',
+    version='0.7.6',
     description='Python interface to Verilator models',
     long_description=long_description,
-    url='https://github.com/csail-csg/pyverilator',
-    author='CSAIL CSG',
+    url='https://github.com/bat52/pyverilator',
+    author='CSAIL CSG, Marco Merlin',
     author_email='acwright@mit.edu, bthom@mit.edu',
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
@@ -29,14 +29,16 @@ setup(
     keywords='Verilator Wrapper Verilog',
     packages=find_packages(exclude=['examples']),
     include_package_data=True,
-    install_requires=['tclwrapper>=0.0.1'],
+    install_requires=['packaging'],
     setup_requires=['pytest-runner'],
-    tests_require=['pytest'],
+    tests_require=['pytest',
+                   'tclwrapper>=0.0.1'
+                    ],
     entry_points={
         # If we ever want to add an executable script, this is where it goes
     },
     project_urls={
-        'Bug Reports': 'https://github.com/csail-csg/pyverilator/issues',
-        'Source': 'https://github.com/csail-csg/pyverilator',
+        'Bug Reports': 'https://github.com/bat52/pyverilator/issues',
+        'Source': 'https://github.com/bat52/pyverilator',
     },
 )
